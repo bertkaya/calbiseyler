@@ -1,0 +1,64 @@
+# AI Music Sommelier 🍷🎶
+
+> Not "AI that finds songs" — **AI that understands why you want music and designs the listening experience around it.**
+
+Tell it the moment ("3 saatlik rakı sofrası. Türkçe. Herkes eşlik etsin. İlk başta sakin sonra coşsun.") and it builds a
+playlist with an energy story — warm-up → build → peak → finale — optimised transitions, shuffle-friendliness, a
+Playlist DNA, and role-preserving replacements. Then you steer it in plain language ("İlk 30 dakika biraz daha sakin olsun",
+"Tarkan kalsın ama Sezen Aksu olmasın") and send it to Spotify.
+
+📐 **Architecture, provider realities, scoring model, optimisation algorithm, risks:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+
+## Quick start
+
+```bash
+cp .env.example .env        # set APP_SECRET (required in production)
+npm install
+npm run dev                 # http://127.0.0.1:3000
+npm test                    # 46 unit/integration tests
+npm run build && npm start
+```
+
+Requires **Node ≥ 22.13** (uses the built-in `node:sqlite`; no native deps).
+
+Everything works **without any API keys** (public mode, rule-based TR/EN intent parser, local catalog, exports).
+Optional keys unlock more:
+
+| Env | Unlocks |
+|---|---|
+| `ANTHROPIC_API_KEY` | Claude for rich/ambiguous requests, free-form edits, curation beyond the catalog (verified before export) |
+| `SPOTIFY_CLIENT_ID` (+ `SPOTIFY_CLIENT_SECRET`) | Connect account, availability check, create playlist on Spotify (Feb-2026 API) |
+| `APPLE_MUSIC_*` | Apple Music catalog availability (library save UI = phase 2) |
+
+## What's in the MVP
+
+- **Sommelier mode** (natural language + chips) and **Expert mode** (all sliders)
+- Smart, minimal questions (≤2, always skippable — "AI yormasın")
+- Editable **brief** chips: duration, language, era, energy/dance/happiness/nostalgia/popularity/discovery, flow + peak, shuffle, explicit, repetition
+- **Engine:** hard filters → scoring → diversity & quotas → duration fit (±2.5 %, "tam" = ±1 min) → simulated-annealing ordering (flow + transitions + artist spacing + opener/finale) → roles
+- Transition scores (Expert), **shuffle-friendliness**, **Playlist DNA**, flow chart (target vs actual)
+- 👍 ❤️ 👎 🚫 🔄 📌 ✕ per track; dislike → same-role alternative nudged in the right direction
+- Natural-language editing & **Make it…** presets that *preserve* the playlist (diff reported), undo
+- Sommelier suggestions ("2000–2003'ten 4 şarkı eklememe izin verir misin?" → Allow / Keep strictly 90s)
+- Include / exclude (artists, tracks, genres, tags)
+- Platform matching (✓ / ⚠ alternative / ✕) — never silently substitutes; alternatives need approval
+- Spotify OAuth (PKCE) + push, export TXT/CSV/M3U/JSON, public share links `/p/:id` + remix
+- Taste model (transparent, pause, reset), import + DNA + reference playlists, Music Theme, weekly reflection, journal, gentle stats
+- Privacy: delete all data; OAuth tokens AES-256-GCM encrypted; signed httpOnly cookies
+
+## Placeholders (explicit)
+
+- Apple Music **user authorisation (MusicKit JS)** UI — server side ready (`src/lib/providers/apple.ts`)
+- YouTube Music saving — no official API; YouTube Data API v3 integration is phase 2 (links only today)
+- Seed catalog (~230 tracks) metadata are **editorial estimates**; production should enrich via a features API
+
+## Layout
+
+```
+src/lib/engine      platform-independent playlist engine (pure, tested)
+src/lib/ai          intent parser (rules), question planner, edit planner, optional Claude layer
+src/lib/taste       taste model, feedback processor, music theme
+src/lib/providers   MusicProvider adapters (Spotify, Apple, YouTube, Deezer) + matcher
+src/lib/server      services, repository (SQLite), session, crypto
+src/app             Next.js pages + /api routes
+```
