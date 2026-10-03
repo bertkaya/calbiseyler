@@ -15,7 +15,7 @@ Playlist DNA, and role-preserving replacements. Then you steer it in plain langu
 cp .env.example .env        # set APP_SECRET (required in production)
 npm install
 npm run dev                 # http://127.0.0.1:3000
-npm test                    # 62 unit/integration tests
+npm test                    # 67 unit/integration tests
 npm run build && npm start
 ```
 
@@ -86,6 +86,7 @@ Sommelier replies follow the language of each request.
 - Platform matching (✓ / ⚠ alternative / ✕) — never silently substitutes; alternatives need approval
 - Spotify OAuth (PKCE) + push, export TXT/CSV/M3U/JSON, public share links `/p/:id` + remix
 - Taste model (transparent, pause, reset), import + DNA + reference playlists, Music Theme, weekly reflection, journal, gentle stats
+- Abuse protection: DB-backed rate limits (per user + per IP), same-origin check on POSTs, CSP/HSTS headers, daily inactive-user purge (cron)
 - Privacy: delete all data; OAuth tokens AES-256-GCM encrypted; signed httpOnly cookies
 
 ## Placeholders (explicit)

@@ -7,6 +7,7 @@ export const UI_LANG_COOKIE = "ams_lang";
 
 const en = {
   "nav.create": "Create", "nav.import": "Import", "nav.taste": "Taste",
+  "footer.feedback": "Report a bug / give feedback",
   "footer": "AI Music Sommelier · Playlists are experiences, not lists. · Catalog features are editorial estimates unless measured.",
   "lang.switch": "Türkçe",
 
@@ -115,6 +116,7 @@ export type UiKey = keyof typeof en;
 
 const tr: Record<UiKey, string> = {
   "nav.create": "Oluştur", "nav.import": "İçe aktar", "nav.taste": "Zevkim",
+  "footer.feedback": "Hata bildir / geri bildirim ver",
   "footer": "AI Music Sommelier · Playlist bir liste değil, bir deneyimdir. · Ölçülmeyen katalog özellikleri editoryal tahmindir.",
   "lang.switch": "English",
 

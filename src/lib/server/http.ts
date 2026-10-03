@@ -7,10 +7,21 @@ export function json(data: unknown, init?: ResponseInit) {
   return NextResponse.json(data, init);
 }
 
+/** CSRF guard: state-changing requests must come from our own origin (browsers always send Origin on cross-site POSTs). */
+export function sameOrigin(req: Request): boolean {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return true;
+  const origin = req.headers.get("origin");
+  if (!origin) return true; // same-origin form/fetch without Origin, or non-browser client (no ambient cookies to abuse)
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  try { return new URL(origin).host === host; } catch { return false; }
+}
+
 /** Wrap a route handler with uniform error handling. */
 export function route<A extends unknown[]>(fn: (...args: A) => Promise<Response>) {
   return async (...args: A): Promise<Response> => {
     try {
+      const req = args[0];
+      if (req instanceof Request && !sameOrigin(req)) return json({ error: "Cross-origin request blocked" }, { status: 403 });
       return await fn(...args);
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.message }, { status: e.status });

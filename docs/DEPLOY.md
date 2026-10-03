@@ -9,7 +9,7 @@ Gereken: Node.js 20.9+ ve git.
 ```bash
 git clone https://github.com/bertkaya/calbiseyler
 cd calbiseyler
-git checkout claude/ai-music-sommelier-1ig25r   # PR birleşince: main
+git checkout main
 npm install
 cp .env.example .env
 npm run dev
@@ -38,7 +38,7 @@ Tablolar ilk istekte otomatik oluşturulur.
 
 1. https://vercel.com adresinde GitHub ile ücretsiz **Hobby** hesap aç.
 2. **Add New → Project → `bertkaya/calbiseyler`** reposunu içe aktar. Framework: Next.js (otomatik).
-3. PR henüz birleşmediyse: Settings → Git → **Production Branch** = `claude/ai-music-sommelier-1ig25r`. Birleştiyse `main` kalsın.
+3. Production Branch `main` olmalı (Settings → Git).
 4. **Environment Variables**:
 
 | Değişken | Değer |
@@ -49,6 +49,8 @@ Tablolar ilk istekte otomatik oluşturulur.
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 4. adımdan (isteğe bağlı) |
 | `YOUTUBE_API_KEY` | isteğe bağlı |
 | `GETSONGBPM_API_KEY` | isteğe bağlı |
+| `CRON_SECRET` | rastgele bir metin (günlük temizlik işi için; 90 gün hareketsiz anonim kullanıcılar silinir) |
+| `NEXT_PUBLIC_FEEDBACK_URL` | isteğe bağlı: altbilgide "hata bildir" bağlantısı (ör. GitHub issues adresi) |
 
 `APP_URL` gerekmez; Vercel alan adı otomatik kullanılır. Özel alan adı bağlarsan `APP_URL=https://alanadin.com` ekle.
 
@@ -70,6 +72,10 @@ Kota: günde 10.000 birim; 40 şarkılık bir playlist yaklaşık 6.000 harcar.
 
 Spotify (geliştirici uygulaması sahibinin Premium olması gerekiyor), Apple Music (99$/yıl), Claude API (kullanım başına).
 Kodda duruyorlar; ilgili değişkenler boş kaldıkça arayüzde "yapılandırılmamış" görünürler.
+
+## Maliyet güvenliği
+
+`ANTHROPIC_API_KEY` eklemezsen hiçbir şey ücretli olmaz. Eklersen `SOMMELIER_LLM_MODE=auto` yap (yalnızca karmaşık istekler Claude'a gider). Playlist oluşturma saatte 20, metinle düzenleme saatte 60 istekle sınırlı (kullanıcı başına; IP başına 3 katı).
 
 ## Sorun giderme
 
