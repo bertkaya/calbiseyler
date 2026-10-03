@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cookies, headers } from "next/headers";
+import { UI_LANG_COOKIE, pickLang, translate } from "@/lib/ui-i18n";
 import { getPlaylistByShare } from "@/lib/server/repo";
 import { hydrate } from "@/lib/server/playlists";
 import { formatDuration, formatTrackTime } from "@/lib/engine/util";
@@ -21,17 +23,18 @@ export default async function SharePage({ params }: { params: Promise<{ shareId:
   const raw = getPlaylistByShare(shareId);
   if (!raw) notFound();
   const pl = hydrate(raw);
-  const lang = pl.brief.lang;
+  const lang = pickLang((await cookies()).get(UI_LANG_COOKIE)?.value, (await headers()).get("accept-language"));
+  const t = (k: Parameters<typeof translate>[1]) => translate(lang, k);
   return (
     <main>
       <section className="pl-head">
-        <p className="eyebrow">Shared playlist</p>
+        <p className="eyebrow">{t("share.eyebrow")}</p>
         <h1 className="display pl-title">{pl.title}</h1>
         <div className="stat-row mono">
-          <span>{formatDuration(pl.stats.totalSec)} · {pl.stats.trackCount} tracks</span>
-          <span>🔥 {pl.stats.energyAvg.toFixed(1)} Energy</span>
-          <span>❤️ {(pl.dna.nostalgia / 10).toFixed(1)} Nostalgia</span>
-          <span>🎲 {Math.round(pl.stats.shuffleFriendly * 100)}% Shuffle Friendly</span>
+          <span>{formatDuration(pl.stats.totalSec)} · {pl.stats.trackCount} {t("pl.tracks")}</span>
+          <span>🔥 {pl.stats.energyAvg.toFixed(1)} {t("pl.energy")}</span>
+          <span>❤️ {(pl.dna.nostalgia / 10).toFixed(1)} {t("pl.nostalgia")}</span>
+          <span>🎲 {Math.round(pl.stats.shuffleFriendly * 100)}% {t("pl.shuffleFriendly")}</span>
         </div>
         <div className="row wrap" style={{ marginTop: 16 }}>
           <RemixButton shareId={shareId} />
@@ -56,8 +59,8 @@ export default async function SharePage({ params }: { params: Promise<{ shareId:
           </ol>
         </div>
         <aside className="stack">
-          <div className="card pad"><span className="eyebrow">Playlist DNA</span><div style={{ marginTop: 10 }}><DNABars dna={pl.dna} lang={lang} /></div></div>
-          <div className="card pad small"><span className="eyebrow">Why this playlist?</span><p>{pl.explanation}</p></div>
+          <div className="card pad"><span className="eyebrow">{t("pl.dna")}</span><div style={{ marginTop: 10 }}><DNABars dna={pl.dna} /></div></div>
+          <div className="card pad small"><span className="eyebrow">{t("share.why")}</span><p>{pl.explanation}</p></div>
         </aside>
       </div>
     </main>

@@ -69,7 +69,7 @@ describe("service layer", () => {
   });
 
   it("imports a text list and builds DNA; reference playlists steer creation", async () => {
-    const imp = svc.importTracks(USER, "Mine", parseTextList("Tarkan - Şımarık\nMustafa Sandal - Araba\nKenan Doğulu - Çakkıdı\nUnknown Band - Some Song"));
+    const imp = await svc.importTracks(USER, "Mine", parseTextList("Tarkan - Şımarık\nMustafa Sandal - Araba\nKenan Doğulu - Çakkıdı\nUnknown Band - Some Song"));
     expect(imp.items.length).toBe(4);
     expect(imp.dna.turkish).toBeGreaterThanOrEqual(75);
     const out = await svc.createPlaylist(USER, { prompt: "bunun gibi ama daha hareketli", referencePlaylistIds: [imp.id], skipQuestions: true });

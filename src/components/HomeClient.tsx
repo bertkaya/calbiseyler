@@ -4,33 +4,37 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Activity, Mood, PlaylistBrief, Question } from "@/lib/types";
 import { api, ApiError } from "./api";
-import { Dots, Seg, Slider, Toast, coverStyle } from "./ui";
+import { Seg, Slider, Toast, coverStyle } from "./ui";
+import { useT } from "./LangProvider";
+import type { UiKey } from "@/lib/ui-i18n";
 
-const MOODS: { id: Mood; label: string }[] = [
-  { id: "happy", label: "😊 Happy" }, { id: "sad", label: "🌧️ Sad" }, { id: "chill", label: "🌿 Chill" },
-  { id: "romantic", label: "🌹 Romantic" }, { id: "energetic", label: "⚡ Energetic" }, { id: "nostalgic", label: "📼 Nostalgic" },
-  { id: "melancholic", label: "🌙 Melancholic" }, { id: "party", label: "🥳 Party" }, { id: "focus", label: "🎯 Focus" }, { id: "roadtrip", label: "🚗 Road Trip" },
-];
-const ACTIVITIES: { id: Activity; label: string }[] = [
-  { id: "party", label: "Party" }, { id: "dinner", label: "Dinner" }, { id: "driving", label: "Driving" }, { id: "workout", label: "Workout" },
-  { id: "date", label: "Date Night" }, { id: "background", label: "Background" }, { id: "pregame", label: "Pre-Game" },
-  { id: "wedding", label: "Wedding" }, { id: "beach", label: "Beach" }, { id: "work", label: "Work" }, { id: "raki", label: "Rakı Sofrası" },
-];
-const DURATIONS = [{ m: 30, l: "30 min" }, { m: 60, l: "1 hour" }, { m: 120, l: "2 hours" }, { m: 180, l: "3 hours" }, { m: 240, l: "4+ hours" }];
+const MOODS: Mood[] = ["happy", "sad", "chill", "romantic", "energetic", "nostalgic", "melancholic", "party", "focus", "roadtrip"];
+const ACTIVITIES: Activity[] = ["party", "dinner", "driving", "workout", "date", "background", "pregame", "wedding", "beach", "work", "raki"];
+const DURATIONS = [30, 60, 120, 180, 240];
 const ERAS = [{ f: 1970, t: 1979, l: "70s" }, { f: 1980, t: 1989, l: "80s" }, { f: 1990, t: 1999, l: "90s" }, { f: 2000, t: 2009, l: "00s" }, { f: 2010, t: 2019, l: "10s" }, { f: 2020, t: 2030, l: "Current" }];
-const EXAMPLES = [
-  "2 saatlik eller havaya eski Türkçe şarkılar",
-  "3 saatlik rakı sofrası. Türkçe. Herkes eşlik etsin. İlk başta sakin sonra coşsun.",
-  "90'lar Türkçe pop ama çok cheesy olmasın",
-  "2 saatlik road trip. Türkçe + yabancı karışık. Enerji giderek artsın.",
-  "Beni şaşırt.",
-];
+const EXAMPLES = {
+  tr: [
+    "2 saatlik eller havaya eski Türkçe şarkılar",
+    "3 saatlik rakı sofrası. Türkçe. Herkes eşlik etsin. İlk başta sakin sonra coşsun.",
+    "90'lar Türkçe pop ama çok cheesy olmasın",
+    "2 saatlik road trip. Türkçe + yabancı karışık. Enerji giderek artsın.",
+    "Beni şaşırt.",
+  ],
+  en: [
+    "2 hours of hands-in-the-air Turkish classics",
+    "1 hour of 80s rock for a workout, no explicit",
+    "Dinner with friends, then it should slowly turn into a party — 3 hours",
+    "Road trip, Turkish + international mix, energy rising gradually",
+    "Surprise me.",
+  ],
+};
 
 interface Recent { id: string; title: string; stats: { totalSec: number; trackCount: number }; activity: string | null; updatedAt: number }
 interface Preview { brief: PlaylistBrief; interpretation: string; detected: string[]; title: string }
 
 export function HomeClient() {
   const router = useRouter();
+  const { t, lang } = useT();
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<"sommelier" | "expert">("sommelier");
   const [moods, setMoods] = useState<Mood[]>([]);
@@ -87,15 +91,15 @@ export function HomeClient() {
       const ans = Object.values(extraAnswers ?? answers);
       const res = await api<{ status: string; playlist?: { id: string }; questions?: Question[] }>("/api/playlists", {
         method: "POST",
-        body: { prompt, overrides, answers: ans.length ? ans : undefined, skipQuestions, referencePlaylistIds: refs.length ? refs : undefined, expert: mode === "expert" },
+        body: { prompt, overrides, answers: ans.length ? ans : undefined, skipQuestions, referencePlaylistIds: refs.length ? refs : undefined, expert: mode === "expert", uiLang: lang },
       });
       if (res.status === "needs_input" && res.questions) { setQuestions(res.questions); setBusy(false); return; }
       if (res.playlist) router.push(`/playlist/${res.playlist.id}`);
     } catch (e) {
-      setToast(e instanceof ApiError ? e.message : "Bir şeyler ters gitti.");
+      setToast(e instanceof ApiError ? e.message : t("home.error"));
       setBusy(false);
     }
-  }, [prompt, overrides, answers, refs, mode, router]);
+  }, [prompt, overrides, answers, refs, mode, router, lang, t]);
 
   const toggle = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const canCreate = prompt.trim().length > 0 || Object.keys(overrides).length > 0;
@@ -103,9 +107,9 @@ export function HomeClient() {
   return (
     <main>
       <section className="hero">
-        <p className="eyebrow">AI Music Sommelier</p>
-        <h1 className="display">What are we listening to?</h1>
-        <p className="lede">Tell me the moment, not the songs. I&apos;ll design the flow — warm-up, peak, finale — and you can steer anything.</p>
+        <p className="eyebrow" lang="en">{t("home.eyebrow")}</p>
+        <h1 className="display">{t("home.title")}</h1>
+        <p className="lede">{t("home.lede")}</p>
       </section>
 
       <div className="hero-wrap">
@@ -113,11 +117,11 @@ export function HomeClient() {
           className="hero-input"
           onSubmit={(e) => { e.preventDefault(); if (canCreate && !busy) create(); }}
         >
-          <label htmlFor="prompt" className="eyebrow" style={{ position: "absolute", left: -9999 }}>Describe your playlist</label>
+          <label htmlFor="prompt" className="eyebrow" style={{ position: "absolute", left: -9999 }}>{t("home.inputLabel")}</label>
           <textarea
             id="prompt"
             value={prompt}
-            placeholder="2 saatlik, eller havaya, 90'lar–2000'ler Türkçe pop..."
+            placeholder={t("home.placeholder")}
             onChange={(e) => { setPrompt(e.target.value); setQuestions(null); }}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey || !e.shiftKey)) { e.preventDefault(); if (canCreate && !busy) create(); } }}
             rows={3}
@@ -126,7 +130,7 @@ export function HomeClient() {
           <div className="hero-actions">
             <Seg value={mode} onChange={setMode} options={[{ value: "sommelier", label: "Sommelier" }, { value: "expert", label: "Expert" }]} />
             <button className="btn btn-primary btn-xl" type="submit" disabled={!canCreate || busy}>
-              {busy ? <><span className="spinner" /> Designing…</> : "Create"}
+              {busy ? <><span className="spinner" /> {t("home.designing")}</> : t("home.create")}
             </button>
           </div>
         </form>
@@ -160,8 +164,8 @@ export function HomeClient() {
                 </div>
               ))}
               <div className="row">
-                <button className="btn btn-sm" type="button" onClick={() => create(true)} disabled={busy}>Just create — you decide</button>
-                <span className="tiny faint">Questions are optional. I only ask when it really changes the playlist.</span>
+                <button className="btn btn-sm" type="button" onClick={() => create(true)} disabled={busy}>{t("home.justCreate")}</button>
+                <span className="tiny faint">{t("home.questionsNote")}</span>
               </div>
             </div>
           </div>
@@ -169,64 +173,63 @@ export function HomeClient() {
 
         {!prompt && (
           <div className="chips" style={{ marginTop: 14 }}>
-            {EXAMPLES.map((ex) => (
+            {EXAMPLES[lang].map((ex) => (
               <button key={ex} type="button" className="chip chip-soft" onClick={() => setPrompt(ex)}>“{ex}”</button>
             ))}
           </div>
         )}
 
-        <div className="chip-group-label">Mood</div>
+        <div className="chip-group-label">{t("home.mood")}</div>
         <div className="chips">
-          {MOODS.map((m) => <button key={m.id} type="button" className="chip" aria-pressed={moods.includes(m.id)} onClick={() => setMoods(toggle(moods, m.id))}>{m.label}</button>)}
+          {MOODS.map((m) => <button key={m} type="button" className="chip" aria-pressed={moods.includes(m)} onClick={() => setMoods(toggle(moods, m))}>{t(`mood.${m}` as UiKey)}</button>)}
         </div>
-        <div className="chip-group-label">Activity</div>
+        <div className="chip-group-label">{t("home.activity")}</div>
         <div className="chips">
-          {ACTIVITIES.map((a) => <button key={a.id} type="button" className="chip" aria-pressed={activity === a.id} onClick={() => setActivity(activity === a.id ? null : a.id)}>{a.label}</button>)}
+          {ACTIVITIES.map((a) => <button key={a} type="button" className="chip" aria-pressed={activity === a} onClick={() => setActivity(activity === a ? null : a)}>{t(`act.${a}` as UiKey)}</button>)}
         </div>
         <div className="row wrap" style={{ gap: 28 }}>
           <div>
-            <div className="chip-group-label">Duration</div>
+            <div className="chip-group-label">{t("home.duration")}</div>
             <div className="chips">
-              {DURATIONS.map((d) => <button key={d.m} type="button" className="chip" aria-pressed={duration === d.m} onClick={() => setDuration(duration === d.m ? null : d.m)}>⏱ {d.l}</button>)}
+              {DURATIONS.map((d) => <button key={d} type="button" className="chip" aria-pressed={duration === d} onClick={() => setDuration(duration === d ? null : d)}>⏱ {t(`dur.${d}` as UiKey)}</button>)}
             </div>
           </div>
           <div>
-            <div className="chip-group-label">Era</div>
+            <div className="chip-group-label">{t("home.era")}</div>
             <div className="chips">
               {ERAS.map((e) => <button key={e.l} type="button" className="chip" aria-pressed={era === e.l} onClick={() => setEra(era === e.l ? null : e.l)}>{e.l}</button>)}
             </div>
           </div>
           <div>
-            <div className="chip-group-label">Discovery</div>
-            <Seg value={discovery} onChange={setDiscovery} options={[{ value: "safe", label: "Safe" }, { value: "balanced", label: "Balanced" }, { value: "surprise", label: "Surprise Me" }]} />
+            <div className="chip-group-label">{t("home.discovery")}</div>
+            <Seg value={discovery} onChange={setDiscovery} options={[{ value: "safe", label: t("home.safe") }, { value: "balanced", label: t("home.balanced") }, { value: "surprise", label: t("home.surprise") }]} />
           </div>
         </div>
 
         {mode === "expert" && (
           <div className="card pad section">
             <div className="row between wrap">
-              <h2 className="display" style={{ fontSize: 22 }}>Expert controls</h2>
-              <span className="tiny muted">Overrides what the sommelier would infer</span>
+              <h2 className="display" style={{ fontSize: 22 }}>{t("home.expertTitle")}</h2>
+              <span className="tiny muted">{t("home.expertNote")}</span>
             </div>
             <hr className="divider" />
-            <Slider label="Energy" value={expert.energy} onChange={(v) => setExpert({ ...expert, energy: v })} suffix="/10" />
-            <Slider label="Danceability" value={expert.danceability} onChange={(v) => setExpert({ ...expert, danceability: v })} suffix="/10" />
-            <Slider label="Happiness" value={expert.valence} onChange={(v) => setExpert({ ...expert, valence: v })} suffix="/10" />
-            <Slider label="Nostalgia" value={expert.nostalgia} onChange={(v) => setExpert({ ...expert, nostalgia: v })} suffix="/10" />
-            <Slider label="Popularity" value={expert.popularity} onChange={(v) => setExpert({ ...expert, popularity: v })} suffix="/10" />
-            <Slider label="Turkish" value={expert.turkish} min={0} max={100} step={5} onChange={(v) => setExpert({ ...expert, turkish: v })} suffix="%" />
-            <Slider label="Discovery" value={expert.discovery} min={0} max={100} step={5} onChange={(v) => setExpert({ ...expert, discovery: v })} suffix="%" />
+            <Slider label={t("s.energy")} value={expert.energy} onChange={(v) => setExpert({ ...expert, energy: v })} suffix="/10" />
+            <Slider label={t("s.dance")} value={expert.danceability} onChange={(v) => setExpert({ ...expert, danceability: v })} suffix="/10" />
+            <Slider label={t("s.happiness")} value={expert.valence} onChange={(v) => setExpert({ ...expert, valence: v })} suffix="/10" />
+            <Slider label={t("s.nostalgia")} value={expert.nostalgia} onChange={(v) => setExpert({ ...expert, nostalgia: v })} suffix="/10" />
+            <Slider label={t("s.popularity")} value={expert.popularity} onChange={(v) => setExpert({ ...expert, popularity: v })} suffix="/10" />
+            <Slider label={t("s.turkish")} value={expert.turkish} min={0} max={100} step={5} onChange={(v) => setExpert({ ...expert, turkish: v })} suffix="%" />
+            <Slider label={t("s.discovery")} value={expert.discovery} min={0} max={100} step={5} onChange={(v) => setExpert({ ...expert, discovery: v })} suffix="%" />
             <hr className="divider" />
             <div className="row wrap" style={{ gap: 18 }}>
-              <label className="row small" style={{ fontWeight: 650 }}>Flow
+              <label className="row small" style={{ fontWeight: 650 }}>{t("home.flow")}
                 <select className="input" style={{ width: "auto", padding: "6px 10px" }} value={expert.flow} onChange={(e) => setExpert({ ...expert, flow: e.target.value as PlaylistBrief["flow"] })}>
-                  <option value="flat">Flat</option><option value="gradual_rise">Gradual rise</option><option value="party_curve">Party curve</option>
-                  <option value="rollercoaster">Rollercoaster</option><option value="peak_early">Peak early</option><option value="peak_late">Peak late</option><option value="wind_down">Wind down</option>
+                  {(["flat", "gradual_rise", "party_curve", "rollercoaster", "peak_early", "peak_late", "wind_down"] as const).map((f) => <option key={f} value={f}>{t(`flow.${f}`)}</option>)}
                 </select>
               </label>
-              <div className="row small" style={{ fontWeight: 650 }}>Repetition <Seg value={expert.repetition} onChange={(v) => setExpert({ ...expert, repetition: v })} options={[{ value: "low", label: "Low" }, { value: "medium", label: "Med" }, { value: "high", label: "High" }]} /></div>
-              <button type="button" className="chip" aria-pressed={expert.shuffle} onClick={() => setExpert({ ...expert, shuffle: !expert.shuffle })}>🔀 Shuffle-friendly</button>
-              <button type="button" className="chip" aria-pressed={!expert.explicit} onClick={() => setExpert({ ...expert, explicit: !expert.explicit })}>🚸 Clean only</button>
+              <div className="row small" style={{ fontWeight: 650 }}>{t("home.repetition")} <Seg value={expert.repetition} onChange={(v) => setExpert({ ...expert, repetition: v })} options={[{ value: "low", label: t("lvl.low") }, { value: "medium", label: t("lvl.medium") }, { value: "high", label: t("lvl.high") }]} /></div>
+              <button type="button" className="chip" aria-pressed={expert.shuffle} onClick={() => setExpert({ ...expert, shuffle: !expert.shuffle })}>{t("home.shuffle")}</button>
+              <button type="button" className="chip" aria-pressed={!expert.explicit} onClick={() => setExpert({ ...expert, explicit: !expert.explicit })}>{t("home.clean")}</button>
             </div>
           </div>
         )}
@@ -234,11 +237,11 @@ export function HomeClient() {
 
       <section className="section" style={{ marginTop: 56 }}>
         <div className="row between wrap" style={{ marginBottom: 12 }}>
-          <h2 className="display" style={{ fontSize: 26 }}>Your recent playlists</h2>
-          {recent.length > 0 && <span className="tiny muted">Select up to 3 as references: “bunların karışımı ama daha hareketli”</span>}
+          <h2 className="display" style={{ fontSize: 26 }}>{t("home.recent")}</h2>
+          {recent.length > 0 && <span className="tiny muted">{t("home.refHint")}</span>}
         </div>
         {recent.length === 0 ? (
-          <div className="card empty">No playlists yet. Your first one is a sentence away.</div>
+          <div className="card empty">{t("home.noPlaylists")}</div>
         ) : (
           <div className="recent-grid">
             {recent.slice(0, 12).map((r) => (
@@ -248,13 +251,13 @@ export function HomeClient() {
                     <span style={{ ...coverStyle(r.title), width: 44, height: 44, borderRadius: 12, flex: "none" }} aria-hidden />
                     <div className="grow">
                       <div className="title">{r.title}</div>
-                      <div className="tiny muted mono">{Math.round(r.stats.totalSec / 60)} min · {r.stats.trackCount} tracks</div>
+                      <div className="tiny muted mono">{Math.round(r.stats.totalSec / 60)} min · {r.stats.trackCount} {t("home.tracks")}</div>
                     </div>
                   </div>
                 </Link>
                 <label className="row tiny muted" style={{ marginTop: 10, cursor: "pointer" }}>
                   <input type="checkbox" checked={refs.includes(r.id)} onChange={() => setRefs(refs.includes(r.id) ? refs.filter((x) => x !== r.id) : [...refs, r.id].slice(-3))} />
-                  Use as reference
+                  {t("home.useRef")}
                 </label>
               </div>
             ))}

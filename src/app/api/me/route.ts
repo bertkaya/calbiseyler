@@ -8,6 +8,10 @@ import { gamification } from "@/lib/server/playlists";
 import { providerStatus } from "@/lib/providers/registry";
 import { llmEnabled } from "@/lib/ai/llm";
 import { REFLECTION_PROMPTS } from "@/lib/taste/theme";
+import { spotifyProvider } from "@/lib/providers/spotify";
+import { deezerProvider } from "@/lib/providers/deezer";
+import { reccoEnabled } from "@/lib/enrich/reccobeats";
+import { getSongBpmEnabled } from "@/lib/enrich/getsongbpm";
 
 export const runtime = "nodejs";
 
@@ -22,6 +26,11 @@ export const GET = route(async () => {
     stats: gamification(userId),
     providers: providerStatus(),
     llm: llmEnabled(),
+    enrichment: [
+      ...(spotifyProvider.isConfigured() && reccoEnabled() ? ["ReccoBeats"] : []),
+      ...(getSongBpmEnabled() ? ["GetSongBPM"] : []),
+      ...(deezerProvider.isConfigured() ? ["Deezer BPM"] : []),
+    ],
     reflection: REFLECTION_PROMPTS,
   });
 });

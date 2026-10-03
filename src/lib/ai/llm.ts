@@ -18,6 +18,14 @@ export function llmEnabled(): boolean {
   return !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) && process.env.SOMMELIER_DISABLE_LLM !== "1";
 }
 
+/**
+ * "always" (default): every natural-language request/edit goes through Claude first,
+ * rules still pin catalog matches. "auto": only rich/ambiguous requests.
+ */
+export function llmMode(): "always" | "auto" {
+  return process.env.SOMMELIER_LLM_MODE === "auto" ? "auto" : "always";
+}
+
 let client: Anthropic | null = null;
 function anthropic(): Anthropic {
   client ??= new Anthropic({ timeout: TIMEOUT_MS, maxRetries: 1 });

@@ -15,9 +15,9 @@ export const POST = route(async (req: Request) => {
   if (b.url) {
     const auth = (await spotifyAuth(userId)) ?? undefined;
     const pl = await spotifyProvider.readPlaylist!(auth, b.url);
-    return json({ playlist: importTracks(userId, b.name || pl.name, pl.tracks) }, { status: 201 });
+    return json({ playlist: await importTracks(userId, b.name || pl.name, pl.tracks) }, { status: 201 });
   }
   const items = parseTextList(b.text ?? "");
   if (!items.length) throw new HttpError(400, "Paste one track per line as “Artist - Title”.");
-  return json({ playlist: importTracks(userId, b.name || "Imported playlist", items) }, { status: 201 });
+  return json({ playlist: await importTracks(userId, b.name || "Imported playlist", items) }, { status: 201 });
 });

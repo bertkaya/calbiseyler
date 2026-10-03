@@ -28,7 +28,7 @@ interface SpTrack {
   external_urls: { spotify: string };
   external_ids?: { isrc?: string };
   artists: { name: string }[];
-  album?: { name: string };
+  album?: { name: string; release_date?: string };
   preview_url?: string | null;
 }
 
@@ -41,6 +41,7 @@ function toRef(t: SpTrack): ProviderTrackRef {
     title: t.name,
     artist: t.artists.map((a) => a.name).join(", "),
     album: t.album?.name,
+    year: t.album?.release_date ? Number(t.album.release_date.slice(0, 4)) || undefined : undefined,
     durationSec: Math.round(t.duration_ms / 1000),
     isrc: t.external_ids?.isrc,
     previewUrl: t.preview_url ?? null,

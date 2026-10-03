@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { cookies, headers } from "next/headers";
+import { Footer, LangProvider, Nav } from "@/components/LangProvider";
+import { UI_LANG_COOKIE, pickLang } from "@/lib/ui-i18n";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,9 +21,10 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const lang = pickLang((await cookies()).get(UI_LANG_COOKIE)?.value, (await headers()).get("accept-language"));
   return (
-    <html lang="en">
+    <html lang={lang}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -30,23 +34,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <div className="shell">
-          <header className="topbar">
-            <Link href="/" className="brand" aria-label="AI Music Sommelier — home">
-              <span className="brand-mark" aria-hidden>♪</span>
-              <span>Sommelier</span>
-            </Link>
-            <nav className="nav" aria-label="Main">
-              <Link href="/">Create</Link>
-              <Link href="/import">Import</Link>
-              <Link href="/me">Taste</Link>
-            </nav>
-          </header>
-          {children}
-          <footer className="footer">
-            AI Music Sommelier · Playlists are experiences, not lists. · Track features are editorial estimates.
-          </footer>
-        </div>
+        <LangProvider initial={lang}>
+          <div className="shell">
+            <header className="topbar">
+              <Link href="/" className="brand" aria-label="AI Music Sommelier">
+                <span className="brand-mark" aria-hidden>♪</span>
+                <span>Sommelier</span>
+              </Link>
+              <Nav />
+            </header>
+            {children}
+            <Footer />
+          </div>
+        </LangProvider>
       </body>
     </html>
   );

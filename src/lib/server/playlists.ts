@@ -17,7 +17,7 @@ import { presetPatch, type MakeItPreset } from "../engine/presets";
 import { passesFilters } from "../engine/scoring";
 import { understand, briefSummary, hashSeed } from "../ai/intent";
 import { planEdit } from "../ai/edit-rules";
-import { llmCurate, llmEnabled, llmInterpretEdit } from "../ai/llm";
+import { llmCurate, llmEnabled, llmInterpretEdit, llmMode } from "../ai/llm";
 import { mergeLlm } from "../ai/intent";
 import { parseIntentRules } from "../ai/intent-rules";
 import { applyFeedback, journalSignals, noteSeenArtists, toSignals, type FeedbackKind } from "../taste/model";
@@ -26,6 +26,7 @@ import * as repo from "./repo";
 import type { StoredPlaylist } from "./repo";
 import { randomId } from "./crypto";
 import { CURRENT_YEAR } from "../engine/features";
+import { enrichTracks } from "../enrich/enrich";
 
 export interface HydratedPlaylist extends StoredPlaylist {
   items: (StoredPlaylist["tracks"][number] & { track: MusicTrack })[];
@@ -69,7 +70,7 @@ async function maybeCurate(brief: PlaylistBrief, ctx: EngineContext): Promise<nu
   if (sec >= brief.durationMin * 60 * 2.2) return 0;
   const res = await llmCurate(briefSummary(brief), ctx.pool.map((t) => `${t.artist} - ${t.title}`), 30);
   if (!res) return 0;
-  let n = 0;
+  const added: MusicTrack[] = [];
   for (const s of res.tracks) {
     const id = `ai:${slugify(s.artist)}--${slugify(s.title)}`;
     if (ctx.pool.some((t) => t.id === id || (slugify(t.title) === slugify(s.title) && slugify(t.artist) === slugify(s.artist)))) continue;
@@ -80,11 +81,15 @@ async function maybeCurate(brief: PlaylistBrief, ctx: EngineContext): Promise<nu
       tags: s.tags as MusicTrack["tags"], explicit: s.explicit, source: "ai", estimated: true,
       features: { energy: c(s.energy), danceability: c(s.danceability), valence: c(s.valence), popularity: c(s.popularity), bpm: s.bpm ?? undefined },
     };
+    added.push(t);
+  }
+  // Replace LLM estimates with measured features where we can (time-boxed).
+  const { tracks: enriched } = await enrichTracks(added, { budgetMs: Number(process.env.ENRICH_BUDGET_MS || 6000) }).catch(() => ({ tracks: added }));
+  for (const t of enriched) {
     repo.upsertTrack(t);
     ctx.pool.push(t);
-    n++;
   }
-  return n;
+  return enriched.length;
 }
 
 function persistGenerated(id: string, userId: string, prompt: string, interpretation: string, g: GenerateResult, prev?: StoredPlaylist): StoredPlaylist {
@@ -123,6 +128,8 @@ export interface CreateInput {
   skipQuestions?: boolean;
   referencePlaylistIds?: string[];
   expert?: boolean;
+  /** UI language — used for sommelier copy when the prompt itself carries no language (chips only). */
+  uiLang?: "tr" | "en";
 }
 
 export type CreateOutput =
@@ -133,6 +140,7 @@ export async function createPlaylist(userId: string, input: CreateInput): Promis
   const prompt = (input.prompt ?? "").slice(0, 2000);
   const intent = await understand(prompt || "1 saatlik iyi müzik", { overrides: input.overrides });
   let brief = withUserDefaults(userId, intent.brief);
+  if (!prompt.trim() && input.uiLang) brief = { ...brief, lang: input.uiLang };
   for (const a of input.answers ?? []) brief = applyPatch(brief, a);
 
   if (input.referencePlaylistIds?.length) {
@@ -223,13 +231,14 @@ export async function editWithText(userId: string, id: string, text: string): Pr
   let patch = plan.patch;
   let reply = "";
   let drop = plan.removeTrackIds;
-  if (!plan.understood && llmEnabled()) {
+  if (llmEnabled() && (!plan.understood || (llmMode() === "always" && text.trim().split(/\s+/).length >= 4))) {
     const list = tracks.map((t, i) => `${i + 1}. ${t.artist} – ${t.title} (${t.year ?? "?"})`).join("\n");
     const llm = await llmInterpretEdit(text, briefSummary(p.brief), list);
     if (llm?.understood) {
       const merged = mergeLlm(p.brief, { ...emptyLlm(), ...llm.brief } as Parameters<typeof mergeLlm>[1], parseIntentRules(""));
-      patch = diffBrief(p.brief, merged);
-      drop = llm.removeTrackNumbers.map((n) => tracks[n - 1]?.id).filter((x): x is string => !!x);
+      // Rules win on what they parsed explicitly (catalog artists/titles, segments); LLM fills the rest.
+      patch = { ...diffBrief(p.brief, merged), ...plan.patch };
+      drop = [...new Set([...plan.removeTrackIds, ...llm.removeTrackNumbers.map((n) => tracks[n - 1]?.id).filter((x): x is string => !!x)])];
       if (drop.length) patch.exclude = { ...merged.exclude, trackIds: [...merged.exclude.trackIds, ...drop] };
       reply = llm.reply;
     }
@@ -481,9 +490,10 @@ export function addJournalEntry(userId: string, playlistId: string | null, text:
 }
 
 /** Import → analyse DNA → becomes a reference playlist. */
-export function importTracks(userId: string, name: string, items: { title: string; artist: string; durationSec?: number; isrc?: string }[]): HydratedPlaylist {
+export async function importTracks(userId: string, name: string, items: { title: string; artist: string; durationSec?: number; isrc?: string }[]): Promise<HydratedPlaylist> {
   const seeds = allSeedTracks();
   const ids: string[] = [];
+  const fresh: MusicTrack[] = [];
   for (const it of items.slice(0, 500)) {
     const match = seeds.find((t) => slugify(t.title) === slugify(it.title) && slugify(t.artist).includes(slugify(it.artist.split(/\s*[&,]\s*/)[0])));
     if (match) { ids.push(match.id); continue; }
@@ -492,7 +502,7 @@ export function importTracks(userId: string, name: string, items: { title: strin
     if (!existing) {
       const rp = parseIntentRules(`${it.artist} ${it.title}`);
       const tr = /[çğıöşü]/i.test(`${it.title} ${it.artist}`);
-      repo.upsertTrack({
+      fresh.push({
         id, title: it.title, artist: it.artist, durationSec: it.durationSec ?? 225, language: tr ? "tr" : "en",
         genres: rp.patch.genres?.length ? rp.patch.genres : [tr ? "tr-pop" : "pop"], tags: [], explicit: false, source: "import", estimated: true,
         isrc: it.isrc, features: {},
@@ -500,6 +510,8 @@ export function importTracks(userId: string, name: string, items: { title: strin
     }
     ids.push(id);
   }
+  const { tracks: measured } = await enrichTracks(fresh, { budgetMs: Number(process.env.ENRICH_BUDGET_MS || 10000) }).catch(() => ({ tracks: fresh }));
+  for (const t of measured) repo.upsertTrack(t);
   const tracks = repo.getTracks(ids);
   const brief = defaultImportBrief(tracks);
   const pts = tracks.map((t, i) => ({ trackId: t.id, position: i, role: "warmup" as const, transitionIn: null, locked: false }));

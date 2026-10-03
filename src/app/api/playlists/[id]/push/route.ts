@@ -4,15 +4,16 @@ import { requireUser } from "@/lib/server/session";
 import { HttpError } from "@/lib/server/playlists";
 import { getPlaylist, getTracks, logSession } from "@/lib/server/repo";
 import { spotifyProvider } from "@/lib/providers/spotify";
+import { appleProvider } from "@/lib/providers/apple";
 import { matchTracks } from "@/lib/providers/matcher";
-import { spotifyAuth } from "@/lib/server/connections";
+import { appleAuth, spotifyAuth } from "@/lib/server/connections";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 type Ctx = { params: Promise<{ id: string }> };
 
 const Body = z.object({
-  provider: z.literal("spotify"),
+  provider: z.enum(["spotify", "apple"]),
   /** Track ids whose "alternative version" match the user approved. */
   acceptAlternatives: z.array(z.string()).max(500).default([]),
 });
@@ -23,14 +24,22 @@ export const POST = route(async (req: Request, { params }: Ctx) => {
   const b = await body(req, Body);
   const p = getPlaylist(id);
   if (!p || p.userId !== userId) throw new HttpError(404, "Playlist not found");
-  const auth = await spotifyAuth(userId);
-  if (!auth) return json({ error: "not_connected", connectUrl: `/api/auth/spotify/login?return=/playlist/${id}` }, { status: 401 });
+  const prov = b.provider === "spotify" ? spotifyProvider : appleProvider;
+  if (!prov.isConfigured()) throw new HttpError(503, `${prov.name} is not configured`);
+  const auth = b.provider === "spotify" ? await spotifyAuth(userId) : appleAuth(userId);
+  if (!auth) {
+    return json(
+      { error: "not_connected", provider: b.provider, connectUrl: b.provider === "spotify" ? `/api/auth/spotify/login?return=/playlist/${id}` : null },
+      { status: 401 },
+    );
+  }
   const tracks = getTracks(p.tracks.map((t) => t.trackId));
-  const matches = await matchTracks(tracks, spotifyProvider, auth);
+  // Apple catalog search uses the developer token; the user token is only needed to write.
+  const matches = await matchTracks(tracks, prov, b.provider === "spotify" ? auth : undefined);
   const refs = matches.filter((m) => m.ref && (m.status === "available" || (m.status === "alternative" && b.acceptAlternatives.includes(m.trackId)))).map((m) => m.ref!);
-  if (!refs.length) throw new HttpError(422, "No tracks could be matched on Spotify");
+  if (!refs.length) throw new HttpError(422, `No tracks could be matched on ${prov.name}`);
   const description = `${p.interpretation.replace(/^Anladım\.\s*|^Got it\.\s*/, "")} — AI Music Sommelier`;
-  const created = await spotifyProvider.createPlaylist!(auth, p.title, description, refs);
-  logSession(id, "push", "spotify", created.url, null);
-  return json({ url: created.url, added: refs.length, skipped: tracks.length - refs.length });
+  const created = await prov.createPlaylist!(auth, p.title, description, refs);
+  logSession(id, "push", b.provider, created.url, null);
+  return json({ provider: b.provider, url: created.url, added: refs.length, skipped: tracks.length - refs.length });
 });

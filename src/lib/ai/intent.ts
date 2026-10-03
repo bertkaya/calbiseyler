@@ -7,7 +7,7 @@ import { CATALOG_ARTISTS, allSeedTracks, norm, searchTracks } from "../catalog";
 import { applyPatch, defaultBrief, emptyIE } from "../engine/brief";
 import { interpretBrief } from "../engine/explain";
 import { parseIntentRules, type RuleParse } from "./intent-rules";
-import { llmEnabled, llmParseIntent, type LlmBrief } from "./llm";
+import { llmEnabled, llmMode, llmParseIntent, type LlmBrief } from "./llm";
 import { planQuestions } from "./questions";
 
 export interface IntentResult {
@@ -26,7 +26,8 @@ export interface IntentOptions {
 
 /** Heuristic: is the request rich enough that an LLM would understand it better than rules? */
 function wantsLlm(text: string, rp: RuleParse): boolean {
-  const words = text.trim().split(/\s+/).length;
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  if (llmMode() === "always") return words >= 2;
   const understood = rp.detected.length;
   return words >= 14 || (words >= 6 && understood <= 1);
 }

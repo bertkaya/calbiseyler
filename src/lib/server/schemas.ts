@@ -51,6 +51,7 @@ export const CreateBody = z.object({
   skipQuestions: z.boolean().optional(),
   referencePlaylistIds: z.array(z.string()).max(5).optional(),
   expert: z.boolean().optional(),
+  uiLang: z.enum(["tr", "en"]).optional(),
 });
 
 export const ActionBody = z.discriminatedUnion("action", [

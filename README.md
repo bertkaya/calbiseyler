@@ -15,7 +15,7 @@ Playlist DNA, and role-preserving replacements. Then you steer it in plain langu
 cp .env.example .env        # set APP_SECRET (required in production)
 npm install
 npm run dev                 # http://127.0.0.1:3000
-npm test                    # 46 unit/integration tests
+npm test                    # 55 unit/integration tests
 npm run build && npm start
 ```
 
@@ -28,7 +28,27 @@ Optional keys unlock more:
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude for rich/ambiguous requests, free-form edits, curation beyond the catalog (verified before export) |
 | `SPOTIFY_CLIENT_ID` (+ `SPOTIFY_CLIENT_SECRET`) | Connect account, availability check, create playlist on Spotify (Feb-2026 API) |
-| `APPLE_MUSIC_*` | Apple Music catalog availability (library save UI = phase 2) |
+| `APPLE_MUSIC_*` | Apple Music availability + Connect (MusicKit JS) + save to library |
+| `GETSONGBPM_API_KEY` | Tempo/key fallback for catalog enrichment |
+| `SOMMELIER_LLM_MODE` | `always` (default: Claude reads every request/edit) or `auto` (only rich/ambiguous ones) |
+
+### Growing the catalog with measured features
+
+Spotify no longer exposes audio features, so the engine enriches tracks itself:
+Spotify ID → **ReccoBeats** (energy, valence, danceability, tempo, key, popularity; keyless) → **GetSongBPM** (tempo/key) → **Deezer** (BPM).
+Every step is optional and fail-safe.
+
+```bash
+npm run catalog:enrich               # measure the seed catalog → src/lib/catalog/enriched.json (commit it)
+npm run catalog:grow -- tracks.txt   # add tracks: "Artist - Title | genre,genre | tags | lang"
+```
+
+AI-curated and imported tracks are enriched automatically (time-boxed by `ENRICH_BUDGET_MS`).
+
+### Languages
+
+The interface is bilingual (Türkçe / English) with a toggle in the header; the first visit follows the browser language.
+Sommelier replies follow the language of each request.
 
 ## What's in the MVP
 
@@ -48,7 +68,6 @@ Optional keys unlock more:
 
 ## Placeholders (explicit)
 
-- Apple Music **user authorisation (MusicKit JS)** UI — server side ready (`src/lib/providers/apple.ts`)
 - YouTube Music saving — no official API; YouTube Data API v3 integration is phase 2 (links only today)
 - Seed catalog (~230 tracks) metadata are **editorial estimates**; production should enrich via a features API
 

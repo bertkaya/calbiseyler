@@ -3,14 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "description": "AI that understands why you want music and designs the listening experience around it.",
-  "engines": { "node": ">=22.13" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "catalog:enrich": "tsx --env-file-if-exists=.env scripts/catalog.ts enrich",
+    "catalog:grow": "tsx --env-file-if-exists=.env scripts/catalog.ts grow"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -23,6 +27,7 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"
   }

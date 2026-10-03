@@ -175,8 +175,10 @@ Why this playlist · undo.
 metin/Spotify playlist import + DNA · referans playlist(ler) · müzik günlüğü · Music Theme · nazik gamification ·
 Deezer preview · Apple Music arama/eşleme (token varsa).
 
-**Açıkça placeholder olanlar:** Apple Music kullanıcı yetkilendirme UI'ı (MusicKit JS) · YouTube Data API ile kayıt ·
-listening behavior (skip/replay) — API'ler izin vermediği için yok.
+**v2'de eklenenler:** Özellik zenginleştirme hattı (ReccoBeats → GetSongBPM → Deezer) + `catalog:enrich` / `catalog:grow` CLI ·
+LLM varsayılan mod (`SOMMELIER_LLM_MODE=always`) · Apple Music bağlantısı (MusicKit JS) ve kütüphaneye kayıt · TR/EN çift dilli arayüz.
+
+**Açıkça placeholder olanlar:** YouTube Data API ile kayıt · listening behavior (skip/replay) — API'ler izin vermediği için yok.
 
 ---
 

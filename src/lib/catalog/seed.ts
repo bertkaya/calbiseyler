@@ -18,6 +18,11 @@
  */
 import type { GenreId, MusicTrack, TrackTag } from "../types";
 import { GENRES } from "./genres";
+import ENRICHED from "./enriched.json";
+
+/** Measured features written by `npm run catalog:enrich` (override editorial estimates). */
+type Overlay = Partial<Pick<MusicTrack, "features" | "spotifyId" | "isrc" | "featureSource" | "durationSec">>;
+const OVERLAY = ENRICHED as Record<string, Overlay>;
 
 type Opts = { lang?: string; explicit?: boolean; inst?: boolean; key?: string };
 type Row = [string, string, number, string, string, number, number, number, number, number, number, string, Opts?];
@@ -350,4 +355,12 @@ function rowToTrack(r: Row): MusicTrack {
   };
 }
 
-export const SEED_TRACKS: MusicTrack[] = ROWS.map(rowToTrack);
+function applyOverlay(t: MusicTrack): MusicTrack {
+  const o = OVERLAY[t.id];
+  if (!o) return t;
+  const features = { ...t.features };
+  for (const [k, v] of Object.entries(o.features ?? {})) if (v !== undefined && v !== null) (features as Record<string, unknown>)[k] = v;
+  return { ...t, ...o, features };
+}
+
+export const SEED_TRACKS: MusicTrack[] = ROWS.map(rowToTrack).map(applyOverlay);

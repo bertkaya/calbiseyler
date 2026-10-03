@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { PlaylistDNA } from "@/lib/types";
+import { useT } from "./LangProvider";
 
 export function Slider({ label, value, min = 1, max = 10, step = 0.5, suffix = "", onChange, onCommit }: {
   label: string; value: number; min?: number; max?: number; step?: number; suffix?: string;
@@ -34,25 +35,17 @@ export function Seg<T extends string>({ value, options, onChange }: { value: T; 
   );
 }
 
-const DNA_ROWS: { key: keyof PlaylistDNA; tr: string; en: string }[] = [
-  { key: "nostalgia", tr: "Nostalji", en: "Nostalgia" },
-  { key: "energy", tr: "Enerji", en: "Energy" },
-  { key: "dance", tr: "Dans", en: "Dance" },
-  { key: "mainstream", tr: "Bilinirlik", en: "Mainstream" },
-  { key: "discovery", tr: "Keşif", en: "Discovery" },
-  { key: "happiness", tr: "Mutluluk", en: "Happiness" },
-  { key: "turkish", tr: "Türkçe", en: "Turkish" },
-  { key: "acoustic", tr: "Akustik", en: "Acoustic" },
-];
+const DNA_ROWS: (keyof PlaylistDNA)[] = ["nostalgia", "energy", "dance", "mainstream", "discovery", "happiness", "turkish", "acoustic"];
 
-export function DNABars({ dna, lang = "tr" }: { dna: PlaylistDNA; lang?: "tr" | "en" }) {
+export function DNABars({ dna }: { dna: PlaylistDNA }) {
+  const { t } = useT();
   return (
     <div role="list" aria-label="Playlist DNA">
-      {DNA_ROWS.map((r) => (
-        <div className="dna-row" role="listitem" key={r.key}>
-          <span>{r[lang]}</span>
-          <div className="dna-bar" aria-hidden><i style={{ width: `${dna[r.key] ?? 0}%` }} /></div>
-          <span className="mono muted" style={{ textAlign: "right" }}>{dna[r.key] ?? 0}%</span>
+      {DNA_ROWS.map((k) => (
+        <div className="dna-row" role="listitem" key={k}>
+          <span>{t(`dna.${k}`)}</span>
+          <div className="dna-bar" aria-hidden><i style={{ width: `${dna[k] ?? 0}%` }} /></div>
+          <span className="mono muted" style={{ textAlign: "right" }}>{dna[k] ?? 0}%</span>
         </div>
       ))}
     </div>

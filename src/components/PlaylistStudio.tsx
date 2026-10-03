@@ -12,6 +12,8 @@ import { api, ApiError } from "./api";
 import { BriefEditor } from "./BriefEditor";
 import { FlowChart } from "./FlowChart";
 import { DNABars, Dots, Toast, coverStyle, initials } from "./ui";
+import { useT } from "./LangProvider";
+import { connectAppleMusic } from "./musickit";
 
 type ProviderId = "spotify" | "apple" | "youtube" | "deezer";
 interface Change { playlist: HydratedPlaylist; message: string; diff?: { kept: number; added: number; removed: number } }
@@ -43,7 +45,9 @@ export function PlaylistStudio({ id }: { id: string }) {
   const [playing, setPlaying] = useState<string | null>(null);
   const [shuffleView, setShuffleView] = useState<number[] | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
-  const L = (tr: string, en: string) => (pl?.brief.lang === "en" ? en : tr);
+  // Interface chrome follows the UI language; sommelier replies follow the request language (server).
+  const { lang: uiLang, t: tt } = useT();
+  const L = (tr: string, en: string) => (uiLang === "en" ? en : tr);
 
   useEffect(() => {
     try { setExpert(localStorage.getItem("ams_expert") === "1"); } catch { /* storage unavailable */ }
@@ -55,12 +59,12 @@ export function PlaylistStudio({ id }: { id: string }) {
   useEffect(() => {
     api<{ playlist: HydratedPlaylist }>(`/api/playlists/${id}`)
       .then((r) => { setPl(r.playlist); setMsgs([{ who: "ai", text: r.playlist.interpretation }]); })
-      .catch((e) => setErr(e instanceof ApiError && e.status === 404 ? "Playlist not found." : "Could not load playlist."));
+      .catch((e) => setErr(e instanceof ApiError && e.status === 404 ? "404" : "load"));
   }, [id]);
 
   useEffect(() => {
     const s = search.get("spotify");
-    if (s === "connected") setToast("Spotify connected ✓");
+    if (s === "connected") setToast(tt("pl.spotifyConnected"));
     else if (s) setToast(`Spotify: ${s}`);
   }, [search]);
 
@@ -74,7 +78,7 @@ export function PlaylistStudio({ id }: { id: string }) {
       setMatch(null); setShuffleView(null);
       return r;
     } catch (e) {
-      setToast(e instanceof ApiError ? e.message : "Something went wrong");
+      setToast(e instanceof ApiError ? e.message : tt("pl.error"));
     } finally {
       setBusy(false);
     }
@@ -88,7 +92,7 @@ export function PlaylistStudio({ id }: { id: string }) {
       if (r.message) setMsgs((m) => [...m, { who: "ai", text: r.message }]);
       setMatch(null);
     } catch (e) {
-      setToast(e instanceof ApiError ? e.message : "Something went wrong");
+      setToast(e instanceof ApiError ? e.message : tt("pl.error"));
     } finally { setBusy(false); }
   }, [id]);
 
@@ -96,7 +100,7 @@ export function PlaylistStudio({ id }: { id: string }) {
     if (playing === trackId) { audio.current?.pause(); setPlaying(null); return; }
     try {
       const r = await api<{ previewUrl: string | null; url: string | null }>(`/api/preview?trackId=${encodeURIComponent(trackId)}`);
-      if (!r.previewUrl) { setToast("No preview available for this track."); return; }
+      if (!r.previewUrl) { setToast(tt("pl.noPreview")); return; }
       audio.current?.pause();
       const a = new Audio(r.previewUrl);
       audio.current = a;
@@ -104,7 +108,7 @@ export function PlaylistStudio({ id }: { id: string }) {
       a.onended = () => setPlaying(null);
       await a.play();
       setPlaying(trackId);
-    } catch { setToast("Preview unavailable (offline or blocked)."); }
+    } catch { setToast(tt("pl.previewBlocked")); }
   }, [playing]);
 
   const runMatch = useCallback(async (provider: ProviderId) => {
@@ -113,21 +117,30 @@ export function PlaylistStudio({ id }: { id: string }) {
       const r = await api<MatchRes>(`/api/playlists/${id}/match`, { method: "POST", body: { provider } });
       setMatch(r);
       setAcceptAlt([]);
-    } catch (e) { setToast(e instanceof ApiError ? e.message : "Matching failed"); }
+    } catch (e) { setToast(e instanceof ApiError ? e.message : tt("pl.matchFailed")); }
     finally { setMatching(false); }
   }, [id]);
 
-  const push = useCallback(async () => {
+  const push = useCallback(async (provider: "spotify" | "apple", retried = false): Promise<void> => {
     setBusy(true);
     try {
-      const r = await api<{ url: string; added: number; skipped: number }>(`/api/playlists/${id}/push`, { method: "POST", body: { provider: "spotify", acceptAlternatives: acceptAlt } });
+      const r = await api<{ url: string; added: number; skipped: number }>(`/api/playlists/${id}/push`, { method: "POST", body: { provider, acceptAlternatives: acceptAlt } });
       setPushed(r.url);
-      setMsgs((m) => [...m, { who: "ai", text: L(`Spotify'da oluşturdum: ${r.added} şarkı eklendi${r.skipped ? `, ${r.skipped} atlandı` : ""}.`, `Created on Spotify: ${r.added} tracks added${r.skipped ? `, ${r.skipped} skipped` : ""}.`) }]);
+      const name = provider === "spotify" ? "Spotify" : "Apple Music";
+      setMsgs((m) => [...m, { who: "ai", text: tt("pl.pushed", { p: name, n: r.added, s: r.skipped ? tt("pl.skipped", { n: r.skipped }) : "" }) }]);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) { window.location.href = (e.data as { connectUrl: string }).connectUrl; return; }
-      setToast(e instanceof ApiError ? e.message : "Export failed");
+      if (e instanceof ApiError && e.status === 401) {
+        if (provider === "spotify") { window.location.href = (e.data as { connectUrl: string }).connectUrl; return; }
+        if (!retried) {
+          // Apple: sign in with MusicKit JS in place, then retry once.
+          setToast(tt("pl.appleConnecting"));
+          try { await connectAppleMusic(); setBusy(false); return push("apple", true); } catch (err) { setToast((err as Error).message); }
+        }
+        return;
+      }
+      setToast(e instanceof ApiError ? e.message : tt("pl.exportFailed"));
     } finally { setBusy(false); }
-  }, [id, acceptAlt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, acceptAlt, tt]);
 
   const items = pl?.items ?? [];
   const order = shuffleView ?? items.map((_, i) => i);
@@ -138,10 +151,10 @@ export function PlaylistStudio({ id }: { id: string }) {
   }, [items, totalSec]);
   const matchBy = useMemo(() => new Map(match?.matches.map((m) => [m.trackId, m]) ?? []), [match]);
 
-  if (err) return <div className="card empty section">{err} <Link href="/">Create a new one →</Link></div>;
+  if (err) return <div className="card empty section">{tt(err === "404" ? "pl.notFound" : "pl.loadError")} <Link href="/">{tt("pl.createNew")}</Link></div>;
   if (!pl) return <div className="section"><div className="skeleton" style={{ height: 60, width: "60%" }} /><div className="skeleton" style={{ height: 300, marginTop: 20 }} /></div>;
 
-  const lang = pl.brief.lang;
+  const lang = uiLang;
   const fb = pl.feedback ?? {};
 
   return (
@@ -151,11 +164,11 @@ export function PlaylistStudio({ id }: { id: string }) {
         <h1 className="display pl-title">{pl.title}</h1>
         <div className="stat-row mono">
           <span>{formatDuration(totalSec)} · {pl.stats.trackCount} {L("şarkı", "tracks")}</span>
-          <span title="Energy">🔥 {pl.stats.energyAvg.toFixed(1)} Energy</span>
-          <span title="Nostalgia">❤️ {(pl.dna.nostalgia / 10).toFixed(1)} Nostalgia</span>
-          <span title="Dance">💃 {(pl.dna.dance / 10).toFixed(1)} Dance</span>
-          <span title="Shuffle friendliness">🎲 {Math.round(pl.stats.shuffleFriendly * 100)}% Shuffle Friendly</span>
-          {expert && <span title="Average transition">🔗 {Math.round(pl.stats.avgTransition * 100)}% transitions</span>}
+          <span>🔥 {pl.stats.energyAvg.toFixed(1)} {tt("pl.energy")}</span>
+          <span>❤️ {(pl.dna.nostalgia / 10).toFixed(1)} {tt("pl.nostalgia")}</span>
+          <span>💃 {(pl.dna.dance / 10).toFixed(1)} {tt("pl.dance")}</span>
+          <span>🎲 {Math.round(pl.stats.shuffleFriendly * 100)}% {tt("pl.shuffleFriendly")}</span>
+          {expert && <span>🔗 {Math.round(pl.stats.avgTransition * 100)}% {tt("pl.transitions")}</span>}
         </div>
         <div className="row wrap" style={{ marginTop: 18 }}>
           <button className="btn btn-primary" onClick={() => items[0] && play(items[0].trackId)}>▶ {L("Önizle", "Play preview")}</button>
@@ -165,7 +178,7 @@ export function PlaylistStudio({ id }: { id: string }) {
           <button className="btn" onClick={async () => { const r = await act({ action: "share" }) as unknown as { shareId?: string }; const sid = r?.shareId; if (sid) { const url = `${location.origin}/p/${sid}`; try { await navigator.clipboard.writeText(url); setToast(L("Paylaşım linki kopyalandı", "Share link copied")); } catch { setToast(url); } } }}>↗ {L("Paylaş", "Share")}</button>
           <button className="btn btn-ghost" onClick={async () => { const r = await act({ action: "duplicate" }); if (r?.playlist) router.push(`/playlist/${r.playlist.id}`); }}>⧉ {L("Çoğalt", "Duplicate")}</button>
           <button className="btn btn-ghost" disabled={busy} onClick={() => act({ action: "undo" }).then((r) => r && setMsgs((m) => [...m, { who: "ai", text: L("Bir önceki versiyona döndüm.", "Restored the previous version.") }]))}>↶ {L("Geri al", "Undo")}</button>
-          <label className="row small muted" style={{ marginLeft: "auto", cursor: "pointer" }}><input type="checkbox" checked={expert} onChange={(e) => setExpert(e.target.checked)} /> Expert</label>
+          <label className="row small muted" style={{ marginLeft: "auto", cursor: "pointer" }}><input type="checkbox" checked={expert} onChange={(e) => setExpert(e.target.checked)} /> {tt("pl.expert")}</label>
         </div>
       </section>
 
@@ -228,10 +241,10 @@ export function PlaylistStudio({ id }: { id: string }) {
                       </div>
                     </div>
                     <div className="acts">
-                      <button className="icon-btn" title="Like" aria-pressed={kind === "like"} onClick={() => act({ action: "feedback", position: idx, kind: "like" })}>👍</button>
-                      <button className="icon-btn" title="Love" aria-pressed={kind === "love"} onClick={() => act({ action: "feedback", position: idx, kind: "love" })}>❤️</button>
+                      <button className="icon-btn" title={tt("pl.like")} aria-pressed={kind === "like"} onClick={() => act({ action: "feedback", position: idx, kind: "like" })}>👍</button>
+                      <button className="icon-btn" title={tt("pl.love")} aria-pressed={kind === "love"} onClick={() => act({ action: "feedback", position: idx, kind: "love" })}>❤️</button>
                       <button className="icon-btn" title={L("Sevmedim — rolü koruyan alternatif bul", "Dislike — find a same-role alternative")} onClick={() => act({ action: "feedback", position: idx, kind: "dislike" }, { echo: `👎 ${t.title}` })}>👎</button>
-                      <button className="icon-btn" title="Never play this" onClick={() => act({ action: "feedback", position: idx, kind: "never" }, { echo: `🚫 ${t.title}` })}>🚫</button>
+                      <button className="icon-btn" title={tt("pl.never")} onClick={() => act({ action: "feedback", position: idx, kind: "never" }, { echo: `🚫 ${t.title}` })}>🚫</button>
                       <button className="icon-btn" title={L("Değiştir (aynı rol)", "Replace (same role)")} onClick={() => act({ action: "replace", position: idx })}>🔄</button>
                       <button className="icon-btn" title={L("Alternatifler", "Alternatives")} onClick={async () => { const r = await api<{ alternatives: MusicTrack[] }>(`/api/playlists/${id}/actions`, { method: "POST", body: { action: "alternatives", position: idx } }); setAlts({ pos: idx, items: r.alternatives }); }}>⋯</button>
                       <button className="icon-btn" title={L("Kesin olsun", "Must include")} aria-pressed={it.locked} onClick={() => act({ action: "lock", position: idx })}>📌</button>
@@ -255,7 +268,7 @@ export function PlaylistStudio({ id }: { id: string }) {
           </div>
 
           <div>
-            <div className="chip-group-label">Make it…</div>
+            <div className="chip-group-label">{tt("pl.makeIt")}</div>
             <div className="chips">
               {MAKE_IT.map((p) => <button key={p.id} className="chip" disabled={busy} onClick={() => act({ action: "preset", preset: p.id as MakeItPreset }, { echo: p[lang] })}>{p[lang]}</button>)}
             </div>
@@ -271,12 +284,12 @@ export function PlaylistStudio({ id }: { id: string }) {
 
           <div className="card pad">
             <span className="eyebrow">Flow</span>
-            <div style={{ marginTop: 10 }}><FlowChart target={pl.flowTarget} points={points} roles={items.map((i) => i.role)} lang={lang} /></div>
+            <div style={{ marginTop: 10 }}><FlowChart target={pl.flowTarget} points={points} roles={items.map((i) => i.role)} /></div>
           </div>
 
           <div className="card pad">
             <span className="eyebrow">Playlist DNA</span>
-            <div style={{ marginTop: 10 }}><DNABars dna={pl.dna} lang={lang} /></div>
+            <div style={{ marginTop: 10 }}><DNABars dna={pl.dna} /></div>
             {pl.stats.estimatedShare > 0 && <p className="tiny faint" style={{ marginTop: 8 }}>{Math.round(pl.stats.estimatedShare * 100)}% {L("parçanın özellikleri tahmini.", "of tracks have estimated features.")}</p>}
           </div>
 
@@ -298,11 +311,11 @@ export function PlaylistStudio({ id }: { id: string }) {
                   <p className="small muted">{L("Bu platformun API bağlantısı yapılandırılmamış — her şarkı için arama linkleri hazır.", "This platform's API isn't configured — search links are ready for every track.")}</p>
                 ) : (
                   <div className="mono small" style={{ fontWeight: 700 }}>
-                    <div>{match.summary.total} tracks</div>
-                    <div className="avail available">{match.summary.available} ✓ Available</div>
-                    <div className="avail alternative">{match.summary.alternative} ⚠ Alternative version</div>
-                    <div className="avail unavailable">{match.summary.unavailable} ✕ Not available</div>
-                    {match.summary.unknown > 0 && <div className="avail unknown">{match.summary.unknown} ? Unknown</div>}
+                    <div>{match.summary.total} {tt("pl.tracks")}</div>
+                    <div className="avail available">{match.summary.available} ✓ {tt("pl.available")}</div>
+                    <div className="avail alternative">{match.summary.alternative} ⚠ {tt("pl.alternative")}</div>
+                    <div className="avail unavailable">{match.summary.unavailable} ✕ {tt("pl.unavailable")}</div>
+                    {match.summary.unknown > 0 && <div className="avail unknown">{match.summary.unknown} ? {tt("pl.unknown")}</div>}
                   </div>
                 )}
                 {match.suggestions.map((s) => (
@@ -324,9 +337,12 @@ export function PlaylistStudio({ id }: { id: string }) {
                   );
                 })}
                 {match.provider === "spotify" && match.configured && (
-                  <button className="btn btn-primary" disabled={busy} onClick={push}>{L("Spotify'a gönder", "Send to Spotify")}</button>
+                  <button className="btn btn-primary" disabled={busy} onClick={() => push("spotify")}>{tt("pl.sendSpotify")}</button>
                 )}
-                {pushed && <a className="btn" href={pushed} target="_blank" rel="noreferrer">Open in Spotify ↗</a>}
+                {match.provider === "apple" && match.configured && (
+                  <button className="btn btn-primary" disabled={busy} onClick={() => push("apple")}>{tt("pl.sendApple")}</button>
+                )}
+                {pushed && <a className="btn" href={pushed} target="_blank" rel="noreferrer">{tt("pl.openOn")}</a>}
                 <details className="disclosure">
                   <summary className="small">{L("Şarkı şarkı aç", "Open track by track")}</summary>
                   <ul className="small" style={{ paddingLeft: 18 }}>
@@ -359,7 +375,7 @@ function ExportMenu({ id, lang }: { id: string; lang: "tr" | "en" }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="rel">
-      <button className="btn" onClick={() => setOpen(!open)} aria-expanded={open}>⤓ Export</button>
+      <button className="btn" onClick={() => setOpen(!open)} aria-expanded={open}>⤓ {lang === "en" ? "Export" : "Dışa aktar"}</button>
       {open && (
         <div className="card popover" style={{ minWidth: 200 }} onMouseLeave={() => setOpen(false)}>
           {[["txt", lang === "en" ? "Text list" : "Metin listesi"], ["csv", "CSV (Soundiiz / TuneMyMusic)"], ["m3u", "M3U"], ["json", "JSON"]].map(([f, l]) => (
@@ -385,7 +401,7 @@ function IncludeExclude({ pl, busy, act, lang }: { pl: HydratedPlaylist; busy: b
   const L = (tr: string, en: string) => (lang === "en" ? en : tr);
   return (
     <div className="card pad">
-      <span className="eyebrow">Must include / Must exclude</span>
+      <span className="eyebrow">{L("Kesin olsun / Kesin olmasın", "Must include / Must exclude")}</span>
       <div className="chips" style={{ marginTop: 10 }}>
         {inc.artists.map((a) => <button key={a} className="chip chip-accent" onClick={() => setIE("include", { ...inc, artists: inc.artists.filter((x) => x !== a) })}>✓ {a} <span className="x">×</span></button>)}
         {inc.trackIds.map((t) => <button key={t} className="chip chip-accent" onClick={() => setIE("include", { ...inc, trackIds: inc.trackIds.filter((x) => x !== t) })}>✓ {title(t)} <span className="x">×</span></button>)}

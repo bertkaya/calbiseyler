@@ -23,6 +23,7 @@ export const POST = route(async (req: Request) => {
     skipQuestions: b.skipQuestions,
     referencePlaylistIds: b.referencePlaylistIds,
     expert: b.expert,
+    uiLang: b.uiLang,
   });
   return json(out, { status: out.status === "created" ? 201 : 200 });
 });

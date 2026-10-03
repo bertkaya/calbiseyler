@@ -127,6 +127,9 @@ export interface MusicTrack {
   source: TrackSource;
   /** True when features are estimates (LLM or heuristic), not measured. */
   estimated?: boolean;
+  /** Where measured features came from, e.g. "reccobeats", "getsongbpm", "deezer". */
+  featureSource?: string;
+  spotifyId?: string;
   isrc?: string;
 }
 

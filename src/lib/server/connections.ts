@@ -24,3 +24,10 @@ export async function spotifyAuth(userId: string): Promise<ProviderAuth | null> 
     return null;
   }
 }
+
+/** Apple Music user token (from MusicKit JS authorize), or null. Apple tokens last ~6 months. */
+export function appleAuth(userId: string): ProviderAuth | null {
+  const c = getConnection(userId, "apple");
+  if (!c || c.expiresAt < Date.now()) return null;
+  return { accessToken: decrypt(c.accessTokenEnc) };
+}

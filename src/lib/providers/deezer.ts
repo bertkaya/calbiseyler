@@ -41,3 +41,10 @@ export const deezerProvider: MusicProvider = {
   },
   searchUrl: (q) => `https://www.deezer.com/search/${encodeURIComponent(`${q.title} ${q.artist}`)}`,
 };
+
+/** Track detail carries BPM (often 0 = unknown) and ISRC. */
+export async function deezerTrackDetail(id: string): Promise<{ bpm?: number; isrc?: string } | null> {
+  const t = await fetchJson<{ bpm?: number; isrc?: string; error?: unknown }>(`https://api.deezer.com/track/${encodeURIComponent(id)}`, { timeoutMs: 6000 }, "deezer").catch(() => null);
+  if (!t || t.error) return null;
+  return { bpm: t.bpm && t.bpm > 30 ? Math.round(t.bpm) : undefined, isrc: t.isrc };
+}
