@@ -21,6 +21,24 @@ npm run build && npm start
 
 Requires **Node ≥ 22.13** (uses the built-in `node:sqlite`; no native deps).
 
+## Free mode ($0)
+
+Everything below runs without paying for anything:
+
+| Part | Service | Cost |
+|---|---|---|
+| Understanding requests & edits | Built-in TR/EN rule parser | Free (no LLM key needed) |
+| Playlist engine, DNA, flow, shuffle, replace, edit | Local code | Free |
+| Database | SQLite (`node:sqlite`) | Free |
+| Save to a streaming account | **YouTube Music** via YouTube Data API v3 | Free (Google Cloud project, no billing; 10k quota units/day) |
+| 30-second previews, BPM | Deezer public API | Free, no key |
+| Tempo/key fallback | GetSongBPM | Free key (backlink required) |
+| Export | TXT / CSV / M3U / JSON, share links | Free |
+
+Paid, optional — the code stays but nothing needs them:
+**Spotify** (2026 Dev Mode requires the app owner to have Premium), **Apple Music** (Apple Developer Program, $99/yr),
+**Claude API** (pay per use). ReccoBeats itself is free but needs Spotify IDs, so measured energy/valence only arrive with Spotify credentials.
+
 Everything works **without any API keys** (public mode, rule-based TR/EN intent parser, local catalog, exports).
 Optional keys unlock more:
 

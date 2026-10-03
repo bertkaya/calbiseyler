@@ -265,6 +265,19 @@ dislike ise eski parçanın "neden sevilmediği" yönünde kaydırma (ör. slow 
 
 ---
 
+## Maliyet: Ücretsiz Mod
+
+Kullanıcı kararı: hiçbir servise ücret ödenmeyecek. Varsayılan kurulum bu yüzden şöyle:
+
+| Katman | Ücretsiz seçim | Ücretli alternatif (opsiyonel, kodda duruyor) |
+|---|---|---|
+| Niyet anlama | Kural tabanlı TR/EN parser | Claude API |
+| Hesaba kaydetme | YouTube Music (YouTube Data API v3) | Spotify (Premium şartı), Apple Music (99$/yıl) |
+| Önizleme / BPM | Deezer public API | — |
+| Tempo / ton | GetSongBPM (ücretsiz anahtar) | — |
+| Ses özellikleri | Editoryal tahmin + Deezer BPM | ReccoBeats (ücretsiz ama Spotify ID ister) |
+| Barındırma | Yerel `npm run start` | — |
+
 ## Riskler ve Zor Kısımlar
 
 | Risk | Seviye | Etki | Azaltma |

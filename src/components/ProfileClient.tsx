@@ -129,7 +129,7 @@ export function ProfileClient() {
             <span className="eyebrow">{t("me.accounts")}</span>
             <div className="stack" style={{ marginTop: 10 }}>
               <div className="row between">
-                <span>Spotify {conn("spotify") ? <span className="small muted">· {conn("spotify")!.accountName}</span> : null}</span>
+                <span>Spotify <span className="tiny faint">💳 {t("cost.premium")}</span> {conn("spotify") ? <span className="small muted">· {conn("spotify")!.accountName}</span> : null}</span>
                 {conn("spotify") ? (
                   <button className="btn btn-sm" onClick={() => disconnect("spotify", "Spotify")}>{t("me.disconnect")}</button>
                 ) : configured("spotify") ? (
@@ -137,7 +137,7 @@ export function ProfileClient() {
                 ) : <span className="tiny faint">{t("me.notConfigured")}</span>}
               </div>
               <div className="row between">
-                <span>Apple Music {conn("apple") ? <span className="small muted">· {conn("apple")!.accountName}</span> : null}</span>
+                <span>Apple Music <span className="tiny faint">💳 {t("cost.paid")}</span> {conn("apple") ? <span className="small muted">· {conn("apple")!.accountName}</span> : null}</span>
                 {conn("apple") ? (
                   <button className="btn btn-sm" onClick={() => disconnect("apple", "Apple Music")}>{t("me.disconnect")}</button>
                 ) : configured("apple") ? (
@@ -148,7 +148,7 @@ export function ProfileClient() {
                 ) : <span className="tiny faint">{t("me.notConfigured")}</span>}
               </div>
               <div className="row between">
-                <span>YouTube Music {conn("youtube") ? <span className="small muted">· {conn("youtube")!.accountName}</span> : null}</span>
+                <span>YouTube Music <span className="tiny faint">{t("cost.free")}</span> {conn("youtube") ? <span className="small muted">· {conn("youtube")!.accountName}</span> : null}</span>
                 {conn("youtube") ? (
                   <button className="btn btn-sm" onClick={() => disconnect("google", "YouTube")}>{t("me.disconnect")}</button>
                 ) : me.youtube.oauth ? (

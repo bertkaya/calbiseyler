@@ -38,7 +38,7 @@ export function PlaylistStudio({ id }: { id: string }) {
   const [why, setWhy] = useState(false);
   const [match, setMatch] = useState<MatchRes | null>(null);
   const [matching, setMatching] = useState(false);
-  const [target, setTarget] = useState<ProviderId>("spotify");
+  const [target, setTarget] = useState<ProviderId>("youtube");
   const [acceptAlt, setAcceptAlt] = useState<string[]>([]);
   const [pushed, setPushed] = useState<string | null>(null);
   const [alts, setAlts] = useState<{ pos: number; items: MusicTrack[] } | null>(null);
@@ -301,12 +301,16 @@ export function PlaylistStudio({ id }: { id: string }) {
           <div className="card pad">
             <span className="eyebrow">{L("Platformlar", "Platforms")}</span>
             <div className="chips" style={{ marginTop: 10 }}>
-              {(["spotify", "apple", "youtube", "deezer"] as ProviderId[]).map((p) => (
-                <button key={p} className="chip" aria-pressed={target === p && !!match} disabled={matching} onClick={() => runMatch(p)}>
+              {/* Free platforms first; paid ones stay available for people who already have the account. */}
+              {(["youtube", "deezer", "spotify", "apple"] as ProviderId[]).map((p) => (
+                <button key={p} className="chip" aria-pressed={target === p && !!match} disabled={matching} onClick={() => runMatch(p)}
+                  title={tt(p === "spotify" ? "cost.premium" : p === "apple" ? "cost.paid" : "cost.free")}>
                   {p === "spotify" ? "Spotify" : p === "apple" ? "Apple Music" : p === "youtube" ? "YouTube Music" : "Deezer"}
+                  {p === "spotify" || p === "apple" ? <span className="x">💳</span> : null}
                 </button>
               ))}
             </div>
+            <p className="tiny faint" style={{ margin: "8px 0 0" }}>💳 = {tt("cost.premium")} / {tt("cost.paid")}. {tt("pl.freeExport")}</p>
             {matching && <p className="small muted" style={{ marginTop: 10 }}><Dots /> {L("Her şarkıyı kontrol ediyorum…", "Checking every track…")}</p>}
             {match && (
               <div style={{ marginTop: 12 }} className="stack">
