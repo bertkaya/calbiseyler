@@ -107,7 +107,9 @@ export function fitScore(t: MusicTrack, brief: PlaylistBrief): number {
   if (brief.activity === "wedding" && t.tags.includes("wedding")) fit += 0.05;
   if (brief.activity === "beach" && t.tags.includes("summer")) fit += 0.05;
   if (brief.activity === "work" && t.tags.includes("instrumental")) fit += 0.05;
-  if (!brief.moods.includes("sad") && !brief.moods.includes("melancholic") && brief.valence >= 6 && t.tags.includes("sad")) fit -= 0.06;
+  if (!brief.moods.includes("sad") && !brief.moods.includes("melancholic") && brief.valence >= 6 && t.tags.includes("sad")) {
+    fit -= brief.moods.includes("happy") || brief.moods.includes("party") || brief.activity === "party" ? 0.15 : 0.06;
+  }
   return clamp(fit);
 }
 

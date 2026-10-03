@@ -7,7 +7,8 @@ import { hydrate } from "@/lib/server/playlists";
 import { formatDuration, formatTrackTime } from "@/lib/engine/util";
 import { ROLE_LABEL } from "@/lib/engine/roles";
 import { RemixButton } from "@/components/RemixButton";
-import { DNABars, coverStyle, initials } from "@/components/ui";
+import { DNABars } from "@/components/ui";
+import { coverStyle, initials } from "@/lib/cover";
 
 export const dynamic = "force-dynamic";
 

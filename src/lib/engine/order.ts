@@ -41,7 +41,7 @@ export function optimizeOrder(input: MusicTrack[], brief: PlaylistBrief): MusicT
       }
     }
     const first = ord[0], last = ord[n - 1];
-    const roles = (1 - pop[first]) * 0.1 + Math.max(0, E[first] - target(0) - 1) * 0.04 + (1 - finaleFit[last]) * 0.12;
+    const roles = (1 - pop[first]) * 0.1 + Math.max(0, Math.abs(E[first] - target(0)) - 1) * 0.06 + (1 - finaleFit[last]) * 0.12;
     return (wF * flow) / n / 4 + (wT * trans * 3) / (n - 1) + art * 0.12 + roles;
   };
 

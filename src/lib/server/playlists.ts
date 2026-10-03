@@ -218,7 +218,7 @@ export function updateBrief(userId: string, id: string, patch: Partial<PlaylistB
 
 export function applyMakeIt(userId: string, id: string, preset: MakeItPreset): ChangeResult {
   const p = ownedPlaylist(userId, id);
-  const r = regenerate(userId, p, presetPatch(p.brief, preset), { kind: "preset", input: preset });
+  const r = regenerate(userId, p, presetPatch(p.brief, preset), { kind: "preset", input: preset, keepBonus: 0.06 });
   r.message = diffText(p.brief.lang, r.diff);
   return r;
 }

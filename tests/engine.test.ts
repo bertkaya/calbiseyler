@@ -145,3 +145,25 @@ describe("role-preserving replacement", () => {
     expect(g.trackObjects.map((t) => t.id)).not.toContain(r.track.id);
   });
 });
+
+describe("quality regressions found in end-to-end testing", () => {
+  it("a happy 90s party playlist does not open with a sad ballad", async () => {
+    const { brief } = await understand("Bana 2 saatlik, 90'lar Türkçe pop, mutlu, eller havaya ama çok arabesk olmayan bir playlist yap.");
+    const g = generatePlaylist(brief, { pool });
+    const opener = g.trackObjects[0];
+    expect(opener.tags.includes("sad")).toBe(false);
+    expect(opener.features.energy!).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it("'more energetic' swaps some tracks and raises average energy", async () => {
+    const { applyPatch } = await import("../src/lib/engine/brief");
+    const { presetPatch } = await import("../src/lib/engine/presets");
+    const { brief } = await understand("2 saatlik Türkçe parti");
+    const g1 = generatePlaylist(brief, { pool });
+    const b2 = applyPatch(brief, presetPatch(brief, "more_energetic"));
+    const g2 = generatePlaylist(b2, { pool, keepTrackIds: new Set(g1.tracks.map((t) => t.trackId)), keepBonus: 0.06 });
+    const changed = g2.tracks.filter((t) => !g1.tracks.some((x) => x.trackId === t.trackId)).length;
+    expect(changed).toBeGreaterThan(0);
+    expect(g2.stats.energyAvg).toBeGreaterThan(g1.stats.energyAvg);
+  });
+});
