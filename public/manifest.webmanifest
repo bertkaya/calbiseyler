@@ -1,0 +1,10 @@
+{
+  "name": "AI Music Sommelier",
+  "short_name": "Sommelier",
+  "description": "AI that understands why you want music and designs the listening experience around it.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#120e0d",
+  "theme_color": "#120e0d",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
