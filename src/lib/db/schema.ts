@@ -120,6 +120,12 @@ CREATE TABLE IF NOT EXISTS journal_entries (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT PRIMARY KEY,
+  window_start INTEGER NOT NULL,
+  count INTEGER NOT NULL
+);
+
 INSERT OR IGNORE INTO music_providers (id, name, kind) VALUES
   ('catalog', 'Sommelier Catalog', 'metadata'),
   ('deezer', 'Deezer', 'public'),

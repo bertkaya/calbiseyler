@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sommelier — Yapılacaklar</title>
+<style>
+  :root { --bg:#fbf7f2; --fg:#2a211f; --mut:#7a6b66; --card:#fff; --line:#e8ddd3; --acc:#9b3d2e; --ok:#2e7d4f; --warn:#b7791f; --bad:#b83232; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#120e0d; --fg:#f1e8e2; --mut:#a8978f; --card:#1c1614; --line:#33292580; --acc:#e0866f; --ok:#6cc58f; --warn:#e3b04b; --bad:#ef7b7b; } }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui,sans-serif; padding:24px 16px 64px }
+  main { max-width:820px; margin:0 auto }
+  h1 { font-size:1.7rem; margin:0 0 4px } h2 { font-size:1.15rem; margin:32px 0 10px; color:var(--acc) }
+  p.sub { color:var(--mut); margin:0 0 16px }
+  .status { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:16px 0 }
+  .status div { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:.9rem }
+  .status b { display:block; font-size:1.1rem; color:var(--ok) }
+  label.item { display:flex; gap:10px; align-items:flex-start; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:8px 0; cursor:pointer }
+  label.item input { margin-top:5px; accent-color:var(--acc) }
+  label.item span.t { flex:1 } small { display:block; color:var(--mut); font-size:.85rem }
+  .tag { font-size:.7rem; font-weight:700; padding:1px 7px; border-radius:99px; border:1px solid currentColor; white-space:nowrap }
+  .p0 { color:var(--bad) } .p1 { color:var(--warn) } .p2 { color:var(--mut) }
+  input:checked ~ span.t { opacity:.5; text-decoration:line-through }
+  code { background:var(--line); padding:0 4px; border-radius:4px; font-size:.85em }
+</style>
+</head>
+<body>
+<main>
+<h1>🍷 AI Music Sommelier — Yapılacaklar</h1>
+<p class="sub">Tüm dosyaların incelemesinden çıkan liste · 3 Ekim 2026 · İşaretlediklerin tarayıcında saklanır.</p>
+
+<div class="status">
+  <div><b>✓ Geçti</b>typecheck</div>
+  <div><b>✓ 64/64</b>test</div>
+  <div><b>✓ Başarılı</b>next build</div>
+  <div><b>~7.200 satır</b>TS/TSX, 5 test dosyası</div>
+</div>
+
+<h2>0 · Push / yayın (önce bunlar)</h2>
+<label class="item"><input type="checkbox"><span class="t">Çalışma dalını GitHub'a yolla (<code>claude/dosya-inceleme-push-54465a</code>)<small>Şu an <code>origin/claude/ai-music-sommelier-1ig25r</code> ile birebir aynı; yeni commit yok. Asıl iş: o dalı PR ile <code>main</code>'e birleştirmek.</small></span><span class="tag p0">P0</span></label>
+<label class="item"><input type="checkbox"><span class="t">PR aç → <code>main</code>'e birleştir; <code>DEPLOY.md</code> içindeki "checkout claude/…" ve "Production Branch" notlarını güncelle</span><span class="tag p0">P0</span></label>
+<label class="item"><input type="checkbox"><span class="t">Turso veritabanı + Vercel Hobby projesi kur (<code>APP_SECRET</code>, <code>DATABASE_URL</code>, <code>DATABASE_AUTH_TOKEN</code>)<small>Adımlar: <code>docs/DEPLOY.md</code></small></span><span class="tag p0">P0</span></label>
+<label class="item"><input type="checkbox"><span class="t">Google Cloud: YouTube Data API v3 + OAuth client; Vercel redirect URI'sini ekle; kendi Gmail'ini Test users'a koy</span><span class="tag p1">P1</span></label>
+<label class="item"><input type="checkbox"><span class="t">Canlıda uçtan uca duman testi: brief → playlist → düzenle → YouTube'a kaydet → paylaşım linki → remix</span><span class="tag p0">P0</span></label>
+
+<h2>1 · Deneme sürümü için güvenlik / dayanıklılık</h2>
+<label class="item"><input type="checkbox"><span class="t">Hız sınırı (rate limit) yok<small>Anonim çerezle herkes playlist üretebilir. <code>ANTHROPIC_API_KEY</code> eklenirse (varsayılan mod <code>always</code>) her istek ücretli LLM çağrısı olur. Önce kullanıcı/IP başına basit limit (Vercel KV/Turso sayacı ya da Upstash free), ya da LLM'i <code>auto</code> modda tut.</small></span><span class="tag p0">P0</span></label>
+<label class="item"><input type="checkbox"><span class="t">CSRF / Origin kontrolü yok (POST route'ları yalnızca <code>sameSite=lax</code> çereze güveniyor)<small>Mutasyon yapan <code>/api/*</code> route'larına Origin==APP_URL kontrolü ekle (<code>route()</code> sarmalayıcısında tek yerde).</small></span><span class="tag p1">P1</span></label>
+<label class="item"><input type="checkbox"><span class="t">Güvenlik başlıkları (CSP, X-Frame-Options, Referrer-Policy) <code>next.config.ts</code>'de tanımlı değil</span><span class="tag p1">P1</span></label>
+<label class="item"><input type="checkbox"><span class="t">Kullanıcı girdisi boyut sınırları: import metni, brief metni, katalog arama<small>Zod şemalarında <code>max</code> uzunlukları kontrol et (<code>server/schemas.ts</code>).</small></span><span class="tag p1">P1</span></label>
+<label class="item"><input type="checkbox"><span class="t">Hata izleme: <code>console.error</code> dışında bir şey yok (Vercel logları yeterli mi, Sentry free mi karar ver)</span><span class="tag p2">P2</span></label>
+<label class="item"><input type="checkbox"><span class="t">Eski anonim kullanıcı/playlist temizliği (retention) — veritabanı Turso free limitine dayanabilir</span><span class="tag p2">P2</span></label>
+
+<h2>2 · Test ve CI</h2>
+<label class="item"><input type="checkbox"><span class="t">GitHub Actions: <code>npm ci</code> → <code>typecheck</code> → <code>test</code> → <code>build</code> (<code>.github</code> klasörü yok)</span><span class="tag p0">P0</span></label>
+<label class="item"><input type="checkbox"><span class="t">API route testleri: <code>tests/</code> motoru, parser'ı ve sunucu yardımcılarını kapsıyor; route'lar (auth callback, push, share/remix) kapsanmıyor</span><span class="tag p1">P1</span></label>
+<label class="item"><input type="checkbox"><span class="t">README'deki "62 tests" → 64 olarak güncelle (ya da sayıyı kaldır)</span><span class="tag p2">P2</span></label>
+
+<h2>3 · Ürün / deneyim</h2>
+<label class="item"><input type="checkbox"><span class="t">Mobil kontrol: ana ekran, playlist stüdyosu (13 kB sayfa), akış grafiği küçük ekranda; PWA manifest'i var, ikon yalnızca SVG (PNG 192/512 ekle)</span><span class="tag p1">P1</span></label>
+<label class="item"><input type="checkbox"><span class="t">Geri bildirim kanalı: deneme kullanıcıları için basit "Hata/öneri bildir" bağlantısı (günlük sayfasının yanına)</span><span class="tag p1">P1</span></label>
+<label class="item"><input type="checkbox"><span class="t">Yükleme/hata durumları: playlist üretimi uzarsa (LLM + enrichment) ilerleme göstergesi; Vercel Hobby fonksiyon süre sınırına (10 sn) karşı <code>maxDuration</code> ve <code>ENRICH_BUDGET_MS</code> ayarı</span><span class="tag p0">P0</span></label>
+<label class="item"><input type="checkbox"><span class="t">Google yazı tipleri harici CDN'den yükleniyor — gizlilik için <code>next/font</code> ile self-host</span><span class="tag p2">P2</span></label>
+<label class="item"><input type="checkbox"><span class="t">Erişilebilirlik taraması (klavye, kontrast, aria) — özellikle 👍❤️👎🚫 düğmeleri</span><span class="tag p2">P2</span></label>
+
+<h2>4 · Katalog ve kalite</h2>
+<label class="item"><input type="checkbox"><span class="t">Katalog yalnızca ~230 parça ve metadata "editoryal tahmin"<small>Daha fazla Türkçe/yabancı parça ekle (<code>npm run catalog:grow</code>), Deezer BPM ile zenginleştir (<code>catalog:enrich</code>) ve <code>enriched.json</code>'u commit'le.</small></span><span class="tag p1">P1</span></label>
+<label class="item"><input type="checkbox"><span class="t">Ücretsiz modda ReccoBeats enerji/valans ölçümü Spotify kimliği ister → yalnızca Deezer BPM kalıyor; skorlamanın bu eksik veriyle davranışını doğrula</span><span class="tag p2">P2</span></label>
+<label class="item"><input type="checkbox"><span class="t">YouTube eşleştirme doğruluğu: yanlış video/cover eşleşmeleri için örnek set ve test</span><span class="tag p1">P1</span></label>
+<label class="item"><input type="checkbox"><span class="t">YouTube kotası (günlük 10k, playlist ≈ 6k): kota dolunca kullanıcıya anlaşılır mesaj, tek kullanıcı/gün sınırı</span><span class="tag p1">P1</span></label>
+
+<h2>5 · Sonra (deneme sonrası)</h2>
+<label class="item"><input type="checkbox"><span class="t">Gerçek hesaplar (e-posta/Google girişi) — şimdi anonim çerez; çerez silinirse playlist'ler kaybolur</span><span class="tag p2">P2</span></label>
+<label class="item"><input type="checkbox"><span class="t">Spotify / Apple Music'i açmak (ücretli koşullar değişirse); Apple tarafı hâlâ yer tutucu (<code>providers/apple.ts</code>)</span><span class="tag p2">P2</span></label>
+<label class="item"><input type="checkbox"><span class="t">Analitik (gizlilik dostu: Plausible/Vercel Analytics) ve deneme geri bildirim döngüsü</span><span class="tag p2">P2</span></label>
+</main>
+
+<script>
+  // İşaretleri tarayıcıda sakla
+  const boxes = [...document.querySelectorAll('input[type=checkbox]')];
+  let saved = []; try { saved = JSON.parse(localStorage.getItem('yapilacaklar') || '[]'); } catch {}
+  boxes.forEach((b, i) => {
+    b.checked = !!saved[i];
+    b.addEventListener('change', () => { try { localStorage.setItem('yapilacaklar', JSON.stringify(boxes.map(x => x.checked))); } catch {} });
+  });
+</script>
+</body>
+</html>
