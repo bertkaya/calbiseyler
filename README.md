@@ -15,7 +15,7 @@ Playlist DNA, and role-preserving replacements. Then you steer it in plain langu
 cp .env.example .env        # set APP_SECRET (required in production)
 npm install
 npm run dev                 # http://127.0.0.1:3000
-npm test                    # 62 unit/integration tests
+npm test                    # 64 unit/integration tests
 npm run build && npm start
 ```
 
