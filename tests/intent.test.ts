@@ -113,6 +113,19 @@ describe("natural-language edits", () => {
     expect(p.patch.segments?.[0].delta).toBeLessThan(0);
     expect(p.patch.energy).toBeUndefined();
   });
+  it("başta şarkılar slow olsun → calm opening segment", () => {
+    for (const t of ["başta şarkılar slow olsun", "Başlangıçta yavaş şarkılar olsun", "slow songs at the start"]) {
+      const p = planEdit(t, brief, []);
+      expect(p.understood, t).toBe(true);
+      expect(p.patch.segments?.[0], t).toMatchObject({ startMin: 0, endMin: 24 });
+      expect(p.patch.segments?.[0].delta).toBeLessThan(0);
+    }
+  });
+  it("sonda hareketli bitsin → energetic finish", () => {
+    const p = planEdit("sonda hareketli bitsin", brief, []);
+    expect(p.patch.segments?.[0]).toMatchObject({ startMin: 96, endMin: 120 });
+    expect(p.patch.segments?.[0].delta).toBeGreaterThan(0);
+  });
   it("Biraz daha 2000'ler → widen era", () => {
     const p = planEdit("Biraz daha 2000'ler", brief, []);
     expect(p.patch.eraTo).toBeGreaterThanOrEqual(2005);
@@ -129,5 +142,14 @@ describe("natural-language edits", () => {
     const p = planEdit("Bu playlisti al ve daha modern yap", brief, []);
     expect(p.notes).toContain("more_modern");
     expect(p.patch.eraTo).toBeGreaterThan(1999);
+  });
+});
+
+describe("combined start/end edits", () => {
+  it("başta slow, sonda hareketli → two segments", () => {
+    const p = planEdit("sonda hareketli bitsin, başta şarkılar slow olsun", { ...defaultBrief(), durationMin: 120 }, []);
+    const segs = p.patch.segments ?? [];
+    expect(segs.find((s) => s.startMin === 0)?.delta).toBeLessThan(0);
+    expect(segs.find((s) => s.endMin === 120)?.delta).toBeGreaterThan(0);
   });
 });

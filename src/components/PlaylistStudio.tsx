@@ -41,6 +41,8 @@ export function PlaylistStudio({ id }: { id: string }) {
   const [target, setTarget] = useState<ProviderId>("youtube");
   const [acceptAlt, setAcceptAlt] = useState<string[]>([]);
   const [pushed, setPushed] = useState<string | null>(null);
+  const [quick, setQuick] = useState<{ source: string; found: number; total: number; links: { url: string; from: number; to: number }[]; missing: { trackId: string; title: string; artist: string; searchUrl: string }[] } | null>(null);
+  const [quickBusy, setQuickBusy] = useState(false);
   const [alts, setAlts] = useState<{ pos: number; items: MusicTrack[] } | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
   const [shuffleView, setShuffleView] = useState<number[] | null>(null);
@@ -124,6 +126,13 @@ export function PlaylistStudio({ id }: { id: string }) {
     finally { setMatching(false); }
   }, [id]);
 
+  const makeReady = useCallback(async () => {
+    setQuickBusy(true); setQuick(null);
+    try { setQuick(await api(`/api/playlists/${id}/quick`, { method: "POST" })); }
+    catch (e) { setToast(e instanceof ApiError ? e.message : tt("pl.matchFailed")); }
+    finally { setQuickBusy(false); }
+  }, [id, tt]);
+
   const push = useCallback(async (provider: "spotify" | "apple" | "youtube", retried = false): Promise<void> => {
     setBusy(true);
     try {
@@ -177,6 +186,7 @@ export function PlaylistStudio({ id }: { id: string }) {
           <button className="btn btn-primary" onClick={() => items[0] && play(items[0].trackId)}>▶ {L("Önizle", "Play preview")}</button>
           <button className="btn" onClick={() => setShuffleView(shuffleView ? null : [...order].sort(() => Math.random() - 0.5))} aria-pressed={!!shuffleView} title={L("Shuffle'da nasıl akar?", "How does it flow on shuffle?")}>🔀 {shuffleView ? L("Sıralıya dön", "Back to order") : L("Shuffle testi", "Shuffle test")}</button>
           <button className="btn" onClick={async () => { const r = await api<{ playlist: HydratedPlaylist }>(`/api/playlists/${id}`, { method: "PATCH", body: { saved: !pl.saved } }); setPl(r.playlist); setToast(r.playlist.saved ? L("Kaydedildi ✓", "Saved ✓") : L("Kayıttan çıkarıldı", "Unsaved")); }}>{pl.saved ? "★ " + L("Kaydedildi", "Saved") : "☆ " + L("Kaydet", "Save")}</button>
+          <button className="btn btn-primary" disabled={quickBusy} onClick={makeReady}>🎧 {quickBusy ? L("Şarkıları buluyorum…", "Finding the songs…") : L("Hazır playlist yap", "Make it a ready playlist")}</button>
           <ExportMenu id={id} lang={lang} />
           <button className="btn" onClick={async () => { const r = await act({ action: "share" }) as unknown as { shareId?: string }; const sid = r?.shareId; if (sid) { const url = `${location.origin}/p/${sid}`; try { await navigator.clipboard.writeText(url); setToast(L("Paylaşım linki kopyalandı", "Share link copied")); } catch { setToast(url); } } }}>↗ {L("Paylaş", "Share")}</button>
           <button className="btn btn-ghost" onClick={async () => { const r = await act({ action: "duplicate" }); if (r?.playlist) router.push(`/playlist/${r.playlist.id}`); }}>⧉ {L("Çoğalt", "Duplicate")}</button>
@@ -184,6 +194,32 @@ export function PlaylistStudio({ id }: { id: string }) {
           <label className="row small muted" style={{ marginLeft: "auto", cursor: "pointer" }}><input type="checkbox" checked={expert} onChange={(e) => setExpert(e.target.checked)} /> {tt("pl.expert")}</label>
         </div>
       </section>
+
+      {quick && (
+        <section className="card pad section" aria-live="polite">
+          <span className="eyebrow">🎧 {L("Hazır playlist", "Ready playlist")}</span>
+          <p style={{ margin: "8px 0" }}>
+            {L(`${quick.total} şarkının ${quick.found} tanesini YouTube'da buldum. Aşağıdaki bağlantı sırayla çalan bir playlist açar.`, `Found ${quick.found} of ${quick.total} tracks on YouTube. The link below opens a queue that plays in order.`)}
+          </p>
+          <div className="row wrap">
+            {quick.links.map((l, i) => (
+              <a key={i} className="btn btn-primary" href={l.url} target="_blank" rel="noreferrer">▶ {quick.links.length > 1 ? `${l.from}–${l.to}` : L("Playlisti aç", "Open playlist")}</a>
+            ))}
+          </div>
+          <p className="small muted" style={{ marginTop: 8 }}>
+            {L("YouTube'da açılınca “Playlisti kaydet” ile kendi hesabına ekleyebilirsin. Kalıcı ve düzenli hâli için YouTube Music hesabını bağlayıp aşağıdaki Platformlar bölümünden kaydet.", "Once it opens on YouTube, use “Save playlist” to keep it in your account. For a permanent one, connect YouTube Music and save from the Platforms section below.")}
+            {quick.links.length > 1 && " " + L("YouTube bir bağlantıya en fazla 50 şarkı alır, o yüzden parçalara böldüm.", "YouTube takes at most 50 songs per link, so it is split in parts.")}
+          </p>
+          {quick.missing.length > 0 && (
+            <details style={{ marginTop: 8 }}>
+              <summary className="small">{L(`${quick.missing.length} şarkıyı bulamadım`, `${quick.missing.length} tracks not found`)}</summary>
+              <ul className="small">
+                {quick.missing.map((m) => <li key={m.trackId}><a href={m.searchUrl} target="_blank" rel="noreferrer">{m.artist} – {m.title}</a></li>)}
+              </ul>
+            </details>
+          )}
+        </section>
+      )}
 
       <div className="grid-2 section">
         {/* ── Left: conversation + tracks ── */}

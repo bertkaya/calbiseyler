@@ -67,3 +67,16 @@ describe("YouTube API calls (mocked)", () => {
     expect(calls).toEqual(["a", "b"]);
   });
 });
+
+describe("piped fallback", () => {
+  it("parses video ids and drops non-videos", async () => {
+    const { parsePipedItems } = await import("../src/lib/providers/piped");
+    const refs = parsePipedItems([
+      { url: "/watch?v=JJPlzNajdUs", type: "stream", title: "Sımarık", uploaderName: "Tarkan - Topic", duration: 245 },
+      { url: "/channel/UCxyz", type: "channel", title: "Tarkan" },
+      { url: "/playlist?list=PL1", type: "playlist", title: "x" },
+    ]);
+    expect(refs).toHaveLength(1);
+    expect(refs[0]).toMatchObject({ id: "JJPlzNajdUs", artist: "Tarkan", durationSec: 245 });
+  });
+});

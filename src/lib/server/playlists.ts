@@ -250,8 +250,8 @@ export async function editWithText(userId: string, id: string, text: string): Pr
       playlist: await hydrate(p, userId),
       diff: { kept: p.tracks.length, added: 0, removed: 0 },
       message: lang === "en"
-        ? "I didn't quite catch that. Try e.g. “first 30 minutes calmer”, “more 2000s”, “no Sezen Aksu”."
-        : "Tam anlayamadım. Örneğin “ilk 30 dakika daha sakin”, “biraz daha 2000'ler”, “Sezen Aksu olmasın” diyebilirsin.",
+        ? "I didn't catch that one. Things I understand: “calmer at the start”, “first 30 minutes calmer”, “end with high energy”, “more 2000s”, “more Turkish”, “no Sezen Aksu”, “remove <song>”, “start over”."
+        : "Bunu anlayamadım. Şunları yapabilirim: “başta yavaş şarkılar olsun”, “ilk 30 dakika daha sakin”, “sonda hareketli bitsin”, “biraz daha 2000'ler”, “daha Türkçe”, “Sezen Aksu olmasın”, “<şarkı adı> çıkar”, “baştan yap”.",
     };
   }
   const r = await regenerate(userId, p, patch, { kind: "edit", input: text, reseed: plan.reseed, dropIds: drop, keepBonus: 0.25 });

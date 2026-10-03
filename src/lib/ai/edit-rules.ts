@@ -21,7 +21,7 @@ export interface EditPlan {
 
 const PRESET_WORDS: { preset: MakeItPreset; terms: string[] }[] = [
   { preset: "more_energetic", terms: ["daha enerjik", "daha hareketli", "more energetic", "more upbeat", "daha cos", "daha canli", "hizlandir", "gaz ver"] },
-  { preset: "more_chill", terms: ["daha sakin", "daha chill", "more chill", "calmer", "daha yumusak", "sakinlestir", "yavaslat"] },
+  { preset: "more_chill", terms: ["daha sakin", "daha chill", "more chill", "calmer", "daha yumusak", "sakinlestir", "yavaslat", "daha yavas", "slow olsun", "yavas olsun", "sakin olsun", "slower"] },
   { preset: "more_nostalgic", terms: ["daha nostaljik", "more nostalgic", "daha eski"] },
   { preset: "more_modern", terms: ["daha modern", "more modern", "daha yeni", "daha guncel", "modernlestir"] },
   { preset: "more_mainstream", terms: ["daha bilinen", "daha populer", "more mainstream", "more popular", "daha tanidik"] },
@@ -117,6 +117,11 @@ export function planEdit(raw: string, brief: PlaylistBrief, trackTitles: { id: s
   return { patch, removeTrackIds: [...new Set(removeTrackIds)], reseed, notes, understood };
 }
 
+/** True when a position phrase and a tempo word share a sentence, in either order. */
+function near(pos: string, word: string, text: string): boolean {
+  return new RegExp(`${pos}\\b[^.,;]*?${word}|${word}[^.,;]*?\\b${pos}`).test(text);
+}
+
 function detectRelativeSegments(text: string, durationMin: number): SegmentOverride[] {
   const out: SegmentOverride[] = [];
   const re = /(ilk|son|first|last)\s+(\d+|yarim)\s*(saat|dakika|dk|min\w*|hours?)?[^.]*?(biraz\s+)?(daha\s+|more\s+)?(sakin|yavas|calm|chill|soft|hareketli|enerjik|energetic|cos\w*|patla\w*|upbeat)/g;
@@ -129,6 +134,21 @@ function detectRelativeSegments(text: string, durationMin: number): SegmentOverr
     const delta = calm ? -mag : mag;
     const isFirst = m[1] === "ilk" || m[1] === "first";
     out.push(isFirst ? { startMin: 0, endMin: Math.min(n, durationMin), delta, label: calm ? "calmer start" : "hot start" } : { startMin: Math.max(0, durationMin - n), endMin: durationMin, delta, label: calm ? "soft landing" : "explosive finish" });
+  }
+  // Positional words without a duration: "başta şarkılar slow olsun", "sonda hareketli olsun" → first/last ~20 %.
+  const edge = Math.min(durationMin, Math.max(15, Math.round(durationMin * 0.2)));
+  const slowW = "(slow|yavas|sakin|calm|chill|soft|dinlendirici)", fastW = "(hareketli|enerjik|energetic|cos\\w*|patla\\w*|upbeat|hizli|fast|dans\\w*)";
+  if (!out.some((s) => s.startMin === 0)) {
+    const head = "(?:en basta|basta|baslarda|baslangicta|basinda|acilista|at first|at the start|in the beginning|to start|opening)";
+    const slowStart = near(head, slowW, text), fastStart = near(head, fastW, text);
+    if (slowStart && !fastStart) out.push({ startMin: 0, endMin: edge, delta: -2.5, label: "calmer start" });
+    else if (fastStart && !slowStart) out.push({ startMin: 0, endMin: edge, delta: 2.5, label: "hot start" });
+  }
+  if (!out.some((s) => s.endMin === durationMin)) {
+    const tail = "(?:en sonda|sonda|sonunda|finalde|bitiste|kapanista|at the end|in the end|finale|closing)";
+    const slowEnd = near(tail, slowW, text), fastEnd = near(tail, fastW, text);
+    if (slowEnd && !fastEnd) out.push({ startMin: durationMin - edge, endMin: durationMin, delta: -2.5, label: "soft landing" });
+    else if (fastEnd && !slowEnd) out.push({ startMin: durationMin - edge, endMin: durationMin, delta: 2.5, label: "explosive finish" });
   }
   // "ortası daha sakin"
   if (/(orta|middle)\S*\s[^.]*(sakin|calm|chill)/.test(text)) out.push({ startMin: Math.round(durationMin * 0.4), endMin: Math.round(durationMin * 0.6), delta: -2, label: "breather" });
