@@ -19,7 +19,9 @@ npm test                    # 62 unit/integration tests
 npm run build && npm start
 ```
 
-Requires **Node ≥ 22.13** (uses the built-in `node:sqlite`; no native deps).
+Requires **Node ≥ 20.9**. Local data lives in `data/sommelier.db`; on Vercel use a free Turso database.
+
+**Deploy for free (Vercel + Turso + Google):** step-by-step guide in Turkish → [`docs/DEPLOY.md`](docs/DEPLOY.md)
 
 ## Free mode ($0)
 
@@ -29,7 +31,8 @@ Everything below runs without paying for anything:
 |---|---|---|
 | Understanding requests & edits | Built-in TR/EN rule parser | Free (no LLM key needed) |
 | Playlist engine, DNA, flow, shuffle, replace, edit | Local code | Free |
-| Database | SQLite (`node:sqlite`) | Free |
+| Database | SQLite file locally / Turso on Vercel (libSQL) | Free (Turso free plan, no card) |
+| Hosting | Vercel Hobby | Free |
 | Save to a streaming account | **YouTube Music** via YouTube Data API v3 | Free (Google Cloud project, no billing; 10k quota units/day) |
 | 30-second previews, BPM | Deezer public API | Free, no key |
 | Tempo/key fallback | GetSongBPM | Free key (backlink required) |

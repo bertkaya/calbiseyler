@@ -14,16 +14,16 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ shareId: string }> }): Promise<Metadata> {
   const { shareId } = await params;
-  const p = getPlaylistByShare(shareId);
+  const p = await getPlaylistByShare(shareId);
   return { title: p ? `${p.title} · AI Music Sommelier` : "AI Music Sommelier", description: p?.interpretation };
 }
 
 /** Public, read-only share page: app.com/p/abc123 */
 export default async function SharePage({ params }: { params: Promise<{ shareId: string }> }) {
   const { shareId } = await params;
-  const raw = getPlaylistByShare(shareId);
+  const raw = await getPlaylistByShare(shareId);
   if (!raw) notFound();
-  const pl = hydrate(raw);
+  const pl = await hydrate(raw);
   const lang = pickLang((await cookies()).get(UI_LANG_COOKIE)?.value, (await headers()).get("accept-language"));
   const t = (k: Parameters<typeof translate>[1]) => translate(lang, k);
   return (

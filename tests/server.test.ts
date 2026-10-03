@@ -12,9 +12,9 @@ import { allSeedTracks } from "../src/lib/catalog";
 
 const USER = "u_test";
 
-beforeEach(() => {
+beforeEach(async () => {
   resetDbForTests();
-  repo.ensureUser(USER);
+  await repo.ensureUser(USER);
 });
 
 describe("service layer", () => {
@@ -30,11 +30,11 @@ describe("service layer", () => {
     expect(e.diff.kept).toBeGreaterThan(10);
 
     const before = e.playlist.items[3].trackId;
-    const r = svc.replaceTrack(USER, id, 3, "dislike");
+    const r = await svc.replaceTrack(USER, id, 3, "dislike");
     expect(r.playlist.items[3].trackId).not.toBe(before);
     expect(r.playlist.brief.exclude.trackIds).toContain(before);
 
-    const u = svc.undo(USER, id);
+    const u = await svc.undo(USER, id);
     expect(u.items[3].trackId).toBe(before);
   });
 
@@ -48,21 +48,21 @@ describe("service layer", () => {
   it("learns from feedback, respects pause and reset", async () => {
     const out = await svc.createPlaylist(USER, { prompt: "1 saat türkçe parti", skipQuestions: true });
     if (out.status !== "created") throw new Error();
-    svc.giveFeedback(USER, out.playlist.id, 0, "love");
-    expect(repo.getTaste(USER).events).toBeGreaterThan(0);
-    repo.setLearningPaused(USER, true);
-    const ev = repo.getTaste(USER).events;
-    svc.giveFeedback(USER, out.playlist.id, 1, "like");
-    expect(repo.getTaste(USER).events).toBe(ev);
-    repo.resetTaste(USER);
-    expect(repo.getTaste(USER).events).toBe(0);
+    await svc.giveFeedback(USER, out.playlist.id, 0, "love");
+    expect((await repo.getTaste(USER)).events).toBeGreaterThan(0);
+    await repo.setLearningPaused(USER, true);
+    const ev = (await repo.getTaste(USER)).events;
+    await svc.giveFeedback(USER, out.playlist.id, 1, "like");
+    expect((await repo.getTaste(USER)).events).toBe(ev);
+    await repo.resetTaste(USER);
+    expect((await repo.getTaste(USER)).events).toBe(0);
   });
 
   it("never-play excludes a track from future playlists", async () => {
     const out = await svc.createPlaylist(USER, { prompt: "2 saat türkçe parti", skipQuestions: true });
     if (out.status !== "created") throw new Error();
     const banned = out.playlist.items[5].trackId;
-    svc.giveFeedback(USER, out.playlist.id, 5, "never");
+    await svc.giveFeedback(USER, out.playlist.id, 5, "never");
     const again = await svc.createPlaylist(USER, { prompt: "2 saat türkçe parti", skipQuestions: true });
     if (again.status !== "created") throw new Error();
     expect(again.playlist.items.map((i) => i.trackId)).not.toContain(banned);
@@ -78,8 +78,8 @@ describe("service layer", () => {
 
   it("delete all data removes everything", async () => {
     await svc.createPlaylist(USER, { prompt: "1 saat pop", skipQuestions: true });
-    repo.deleteUserData(USER);
-    expect(repo.listPlaylists(USER)).toHaveLength(0);
+    await repo.deleteUserData(USER);
+    expect(await repo.listPlaylists(USER)).toHaveLength(0);
   });
 });
 

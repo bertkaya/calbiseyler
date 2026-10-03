@@ -23,7 +23,7 @@ export const POST = route(async (req: Request, { params }: Ctx) => {
   const userId = await requireUser();
   const { id } = await params;
   const b = await body(req, Body);
-  const p = getPlaylist(id);
+  const p = await getPlaylist(id);
   if (!p || p.userId !== userId) throw new HttpError(404, "Playlist not found");
   const prov = b.provider === "spotify" ? spotifyProvider : b.provider === "apple" ? appleProvider : youtubeProvider;
   if (!prov.isConfigured()) throw new HttpError(503, `${prov.name} is not configured`);
@@ -34,13 +34,13 @@ export const POST = route(async (req: Request, { params }: Ctx) => {
       { status: 401 },
     );
   }
-  const tracks = getTracks(p.tracks.map((t) => t.trackId));
+  const tracks = await getTracks(p.tracks.map((t) => t.trackId));
   // Apple catalog search uses the developer token; the user token is only needed to write.
   const matches = await matchTracks(tracks, prov, b.provider === "apple" ? undefined : auth);
   const refs = matches.filter((m) => m.ref && (m.status === "available" || (m.status === "alternative" && b.acceptAlternatives.includes(m.trackId)))).map((m) => m.ref!);
   if (!refs.length) throw new HttpError(422, `No tracks could be matched on ${prov.name}`);
   const description = `${p.interpretation.replace(/^Anladım\.\s*|^Got it\.\s*/, "")} — AI Music Sommelier`;
   const created = await prov.createPlaylist!(auth, p.title, description, refs);
-  logSession(id, "push", b.provider, created.url, null);
+  await logSession(id, "push", b.provider, created.url, null);
   return json({ provider: b.provider, url: created.url, added: refs.length, skipped: tracks.length - refs.length });
 });

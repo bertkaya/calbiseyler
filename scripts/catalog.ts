@@ -69,7 +69,7 @@ async function grow(file: string) {
     base.push(t);
   }
   const { tracks, report } = await enrichTracks(base, { concurrency: 3 });
-  for (const t of tracks) upsertTrack(t);
+  for (const t of tracks) await upsertTrack(t);
   console.log(report, `stored ${tracks.length} tracks in the database`);
 }
 

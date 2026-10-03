@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 /** 30-second preview via Deezer's public API (public mode listening). */
 export const GET = route(async (req: Request) => {
   const id = new URL(req.url).searchParams.get("trackId") ?? "";
-  const t = getTrack(id);
+  const t = await getTrack(id);
   if (!t || !deezerProvider.isConfigured()) return json({ previewUrl: null });
   const m = await matchTrack(t, deezerProvider);
   return json({ previewUrl: m.status === "available" || m.status === "alternative" ? m.ref?.previewUrl ?? null : null, url: m.ref?.url ?? null });

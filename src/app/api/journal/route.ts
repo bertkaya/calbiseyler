@@ -8,18 +8,18 @@ export const runtime = "nodejs";
 
 export const GET = route(async () => {
   const userId = await requireUser();
-  return json({ entries: listJournal(userId) });
+  return json({ entries: await listJournal(userId) });
 });
 
 export const POST = route(async (req: Request) => {
   const userId = await requireUser();
   const b = await body(req, z.object({ text: z.string().min(1).max(2000), playlistId: z.string().nullable().default(null) }));
-  return json({ signals: addJournalEntry(userId, b.playlistId, b.text) }, { status: 201 });
+  return json({ signals: await addJournalEntry(userId, b.playlistId, b.text) }, { status: 201 });
 });
 
 export const DELETE = route(async (req: Request) => {
   const userId = await requireUser();
   const id = Number(new URL(req.url).searchParams.get("id"));
-  if (Number.isFinite(id)) deleteJournal(userId, id);
+  if (Number.isFinite(id)) await deleteJournal(userId, id);
   return json({ ok: true });
 });

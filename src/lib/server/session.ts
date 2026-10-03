@@ -27,6 +27,6 @@ export async function requireUser(): Promise<string> {
       maxAge: 60 * 60 * 24 * 365,
     });
   }
-  ensureUser(id);
+  await ensureUser(id);
   return id;
 }

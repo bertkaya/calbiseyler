@@ -27,7 +27,7 @@ Kod tabanı bu dokümanla birebir eşleşir; her bölümde ilgili dosyalar belir
 └───────────────┬───────────────────────────────┬─────────────────────────────────────────┘
                 │                               │
      ┌──────────▼─────────┐        ┌────────────▼──────────────────────────────────┐
-     │ SQLite (node:sqlite)│        │ MusicProvider adapters                        │
+     │ libSQL (SQLite/Turso)│        │ MusicProvider adapters                        │
      │ users, playlists,   │        │  Catalog (local, metadata-rich) · Deezer      │
      │ feedback, taste ... │        │  Spotify · Apple Music · YouTube Music · ...  │
      └─────────────────────┘        └───────────────────────────────────────────────┘
@@ -59,7 +59,7 @@ USER INTENT → PLAYLIST BRIEF → CANDIDATE GENERATION → FILTERING → SCORIN
 | Frontend | **Next.js 15 (App Router) + React 19 + TypeScript** | SSR + API route'ları tek repoda; PWA'ya kolay geçiş; React Native'e paylaşılabilir domain kodu (`src/lib` framework'süz). |
 | Stil | Saf CSS + design tokens (`globals.css`) | Kendi kimliği; ağır UI kit yok; light/dark. |
 | API | Next.js Route Handlers (`/api/*`), JSON | API-first. Mobil uygulama aynı endpoint'leri kullanır. |
-| DB (MVP) | **SQLite — Node 22 yerleşik `node:sqlite`** | Sıfır native bağımlılık. `src/lib/db` tek bir repository katmanı arkasında; Postgres'e geçiş yalnızca bu katmanı etkiler. |
+| DB | **libSQL (`@libsql/client`)** — yerelde SQLite dosyası, Vercel'de Turso (ücretsiz) | Vercel'in dosya sistemi kalıcı değil; Turso SQLite uyumlu olduğu için şema ve sorgular aynı kalır. Tüm sorgular `src/lib/server/repo.ts` içinde. |
 | DB (ölçek) | PostgreSQL + `pgvector` | Büyük katalogda embedding tabanlı aday üretimi, çok kullanıcı. |
 | AI | **Anthropic Claude (`@anthropic-ai/sdk`)**, structured outputs (Zod) | Niyet → JSON brief; sunucu taraflı refusal fallback. |
 | Test | Vitest | Engine saf fonksiyonlardan oluşur → hızlı birim testleri. |
@@ -276,7 +276,7 @@ Kullanıcı kararı: hiçbir servise ücret ödenmeyecek. Varsayılan kurulum bu
 | Önizleme / BPM | Deezer public API | — |
 | Tempo / ton | GetSongBPM (ücretsiz anahtar) | — |
 | Ses özellikleri | Editoryal tahmin + Deezer BPM | ReccoBeats (ücretsiz ama Spotify ID ister) |
-| Barındırma | Yerel `npm run start` | — |
+| Barındırma | Vercel Hobby (+ Turso Free veritabanı) | — |
 
 ## Riskler ve Zor Kısımlar
 

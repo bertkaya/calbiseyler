@@ -6,6 +6,6 @@ export const runtime = "nodejs";
 
 export const POST = route(async () => {
   const userId = await requireUser();
-  deleteConnection(userId, "apple");
+  await deleteConnection(userId, "apple");
   return json({ ok: true });
 });

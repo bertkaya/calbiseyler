@@ -20,7 +20,7 @@ import { planEdit } from "../ai/edit-rules";
 import { llmCurate, llmEnabled, llmInterpretEdit, llmMode } from "../ai/llm";
 import { mergeLlm } from "../ai/intent";
 import { parseIntentRules } from "../ai/intent-rules";
-import { applyFeedback, journalSignals, noteSeenArtists, toSignals, type FeedbackKind } from "../taste/model";
+import { applyFeedback, journalSignals, noteSeenArtists, toSignals, type FeedbackKind, type TasteProfileData } from "../taste/model";
 import { themeDefaults } from "../taste/theme";
 import * as repo from "./repo";
 import type { StoredPlaylist } from "./repo";
@@ -33,30 +33,31 @@ export interface HydratedPlaylist extends StoredPlaylist {
   feedback?: Record<string, string>;
 }
 
-export function hydrate(p: StoredPlaylist, userId?: string): HydratedPlaylist {
-  const items = p.tracks.map((t) => ({ ...t, track: repo.getTrack(t.trackId) })).filter((x): x is HydratedPlaylist["items"][number] => !!x.track);
-  return { ...p, items, feedback: userId ? repo.feedbackForPlaylist(userId, p.id) : undefined };
+export async function hydrate(p: StoredPlaylist, userId?: string): Promise<HydratedPlaylist> {
+  const byId = new Map((await repo.getTracks(p.tracks.map((t) => t.trackId))).map((t) => [t.id, t]));
+  const items = p.tracks.map((t) => ({ ...t, track: byId.get(t.trackId) })).filter((x): x is HydratedPlaylist["items"][number] => !!x.track);
+  return { ...p, items, feedback: userId ? await repo.feedbackForPlaylist(userId, p.id) : undefined };
 }
 
-function pool(): MusicTrack[] {
-  const dyn = repo.dynamicTracks();
+async function pool(): Promise<MusicTrack[]> {
+  const dyn = await repo.dynamicTracks();
   const seen = new Set<string>();
   return [...allSeedTracks(), ...dyn].filter((t) => (seen.has(t.id) ? false : (seen.add(t.id), true)));
 }
 
-export function buildContext(userId: string, brief: PlaylistBrief, extra: Partial<EngineContext> = {}): EngineContext {
-  const taste = toSignals(repo.getTaste(userId));
-  const referenceTracks = brief.referenceTrackIds.length ? repo.getTracks(brief.referenceTrackIds) : undefined;
-  return { pool: pool(), taste, referenceTracks, ...extra };
+export async function buildContext(userId: string, brief: PlaylistBrief, extra: Partial<EngineContext> = {}): Promise<EngineContext> {
+  const taste = toSignals(await repo.getTaste(userId));
+  const referenceTracks = brief.referenceTrackIds.length ? await repo.getTracks(brief.referenceTrackIds) : undefined;
+  return { pool: await pool(), taste, referenceTracks, ...extra };
 }
 
 /** Theme + learned biases fill only what the user didn't specify. */
-function withUserDefaults(userId: string, brief: PlaylistBrief): PlaylistBrief {
+async function withUserDefaults(userId: string, brief: PlaylistBrief): Promise<PlaylistBrief> {
   const explicit = new Set(brief.explicitFields ?? []);
   const patch: Partial<PlaylistBrief> = {};
-  const theme = themeDefaults(repo.getTheme(userId));
+  const theme = themeDefaults(await repo.getTheme(userId));
   for (const [k, v] of Object.entries(theme)) if (!explicit.has(k)) (patch as Record<string, unknown>)[k] = v;
-  const taste = repo.getTaste(userId);
+  const taste = await repo.getTaste(userId);
   if (!explicit.has("energy") && taste.energyBias) patch.energy = brief.energy + Math.max(-1, Math.min(1, taste.energyBias));
   if (!explicit.has("discovery") && taste.discoveryBias) patch.discovery = brief.discovery + taste.discoveryBias;
   return Object.keys(patch).length ? applyPatch(brief, patch, false) : brief;
@@ -86,14 +87,14 @@ async function maybeCurate(brief: PlaylistBrief, ctx: EngineContext): Promise<nu
   // Replace LLM estimates with measured features where we can (time-boxed).
   const { tracks: enriched } = await enrichTracks(added, { budgetMs: Number(process.env.ENRICH_BUDGET_MS || 6000) }).catch(() => ({ tracks: added }));
   for (const t of enriched) {
-    repo.upsertTrack(t);
+    await repo.upsertTrack(t);
     ctx.pool.push(t);
   }
   return enriched.length;
 }
 
-function persistGenerated(id: string, userId: string, prompt: string, interpretation: string, g: GenerateResult, prev?: StoredPlaylist): StoredPlaylist {
-  return repo.savePlaylist({
+async function persistGenerated(id: string, userId: string, prompt: string, interpretation: string, g: GenerateResult, prev?: StoredPlaylist): Promise<StoredPlaylist> {
+  return await repo.savePlaylist({
     id,
     userId,
     title: prev?.title && prev.brief.title ? prev.title : makeTitle(g.brief),
@@ -114,10 +115,10 @@ function persistGenerated(id: string, userId: string, prompt: string, interpreta
   });
 }
 
-function learn(userId: string, fn: (t: ReturnType<typeof repo.getTaste>) => ReturnType<typeof repo.getTaste>) {
-  const user = repo.getUser(userId);
+async function learn(userId: string, fn: (t: TasteProfileData) => TasteProfileData | Promise<TasteProfileData>) {
+  const user = await repo.getUser(userId);
   if (user?.learningPaused) return;
-  repo.saveTaste(userId, fn(repo.getTaste(userId)));
+  await repo.saveTaste(userId, await fn(await repo.getTaste(userId)));
 }
 
 // ── Create ─────────────────────────────────────────────────────
@@ -139,31 +140,32 @@ export type CreateOutput =
 export async function createPlaylist(userId: string, input: CreateInput): Promise<CreateOutput> {
   const prompt = (input.prompt ?? "").slice(0, 2000);
   const intent = await understand(prompt || "1 saatlik iyi müzik", { overrides: input.overrides });
-  let brief = withUserDefaults(userId, intent.brief);
+  let brief = await withUserDefaults(userId, intent.brief);
   if (!prompt.trim() && input.uiLang) brief = { ...brief, lang: input.uiLang };
   for (const a of input.answers ?? []) brief = applyPatch(brief, a);
 
   if (input.referencePlaylistIds?.length) {
-    const refIds = input.referencePlaylistIds.flatMap((id) => repo.getPlaylist(id)?.tracks.map((t) => t.trackId) ?? []);
+    const refs = await Promise.all(input.referencePlaylistIds.map((id) => repo.getPlaylist(id)));
+    const refIds = refs.flatMap((r) => (r && r.userId === userId ? r.tracks.map((t) => t.trackId) : []));
     brief = { ...brief, referenceTrackIds: [...new Set(refIds)] };
   }
   if (!input.skipQuestions && !input.answers?.length && !input.expert && intent.questions.length) {
     return { status: "needs_input", brief, interpretation: interpretBrief(brief), questions: intent.questions, detected: intent.detected };
   }
-  const ctx = buildContext(userId, brief);
+  const ctx = await buildContext(userId, brief);
   const curated = await maybeCurate(brief, ctx);
   const g = generatePlaylist(brief, ctx);
   const id = `pl_${randomId(8)}`;
-  const saved = persistGenerated(id, userId, prompt, interpretBrief(brief), g);
-  repo.logSession(id, "create", prompt, interpretBrief(brief), null);
-  learn(userId, (t) => noteSeenArtists(t, g.trackObjects));
-  return { status: "created", playlist: hydrate(saved, userId), usedLlm: intent.usedLlm, curated };
+  const saved = await persistGenerated(id, userId, prompt, interpretBrief(brief), g);
+  await repo.logSession(id, "create", prompt, interpretBrief(brief), null);
+  await learn(userId, (t) => noteSeenArtists(t, g.trackObjects));
+  return { status: "created", playlist: await hydrate(saved, userId), usedLlm: intent.usedLlm, curated };
 }
 
 /** Preview the brief only (Expert mode / brief card) without generating. */
 export async function previewBrief(userId: string, prompt: string, overrides?: Partial<PlaylistBrief>) {
   const intent = await understand(prompt, { overrides, useLlm: false });
-  const brief = withUserDefaults(userId, intent.brief);
+  const brief = await withUserDefaults(userId, intent.brief);
   return { brief, interpretation: interpretBrief(brief), questions: intent.questions, detected: intent.detected, title: makeTitle(brief) };
 }
 
@@ -174,8 +176,8 @@ export interface ChangeResult {
   diff: { kept: number; added: number; removed: number };
 }
 
-function ownedPlaylist(userId: string, id: string): StoredPlaylist {
-  const p = repo.getPlaylist(id);
+async function ownedPlaylist(userId: string, id: string): Promise<StoredPlaylist> {
+  const p = await repo.getPlaylist(id);
   if (!p || p.userId !== userId) throw new HttpError(404, "Playlist not found");
   return p;
 }
@@ -184,11 +186,11 @@ export class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
-function regenerate(userId: string, p: StoredPlaylist, patch: Partial<PlaylistBrief>, opts: { kind: string; input: string; reseed?: boolean; keepBonus?: number; dropIds?: string[] }): ChangeResult {
+async function regenerate(userId: string, p: StoredPlaylist, patch: Partial<PlaylistBrief>, opts: { kind: string; input: string; reseed?: boolean; keepBonus?: number; dropIds?: string[] }): Promise<ChangeResult> {
   let brief = applyPatch(p.brief, patch);
   if (opts.reseed) brief = { ...brief, seed: (brief.seed + 7919) % 100000 };
   const keep = new Set(p.tracks.map((t) => t.trackId).filter((id) => !opts.dropIds?.includes(id)));
-  const ctx = buildContext(userId, brief, { keepTrackIds: opts.reseed ? undefined : keep, keepBonus: opts.keepBonus ?? 0.22 });
+  const ctx = await buildContext(userId, brief, { keepTrackIds: opts.reseed ? undefined : keep, keepBonus: opts.keepBonus ?? 0.22 });
   const g = generatePlaylist(brief, ctx);
   const newIds = new Set(g.tracks.map((t) => t.trackId));
   const oldIds = new Set(p.tracks.map((t) => t.trackId));
@@ -197,10 +199,10 @@ function regenerate(userId: string, p: StoredPlaylist, patch: Partial<PlaylistBr
     added: [...newIds].filter((x) => !oldIds.has(x)).length,
     removed: [...oldIds].filter((x) => !newIds.has(x)).length,
   };
-  repo.logSession(p.id, opts.kind, opts.input, `${diff.kept}/${diff.added}/${diff.removed}`, p);
-  const saved = persistGenerated(p.id, userId, p.prompt, interpretBrief(brief), g, p);
-  learn(userId, (t) => noteSeenArtists(t, g.trackObjects));
-  return { playlist: hydrate(saved, userId), message: "", diff };
+  await repo.logSession(p.id, opts.kind, opts.input, `${diff.kept}/${diff.added}/${diff.removed}`, p);
+  const saved = await persistGenerated(p.id, userId, p.prompt, interpretBrief(brief), g, p);
+  await learn(userId, (t) => noteSeenArtists(t, g.trackObjects));
+  return { playlist: await hydrate(saved, userId), message: "", diff };
 }
 
 function diffText(lang: "tr" | "en", d: ChangeResult["diff"]): string {
@@ -209,23 +211,23 @@ function diffText(lang: "tr" | "en", d: ChangeResult["diff"]): string {
     : `${d.kept} şarkıyı korudum, ${d.added} yeni şarkı ekledim.`;
 }
 
-export function updateBrief(userId: string, id: string, patch: Partial<PlaylistBrief>): ChangeResult {
-  const p = ownedPlaylist(userId, id);
-  const r = regenerate(userId, p, patch, { kind: "brief", input: JSON.stringify(patch) });
+export async function updateBrief(userId: string, id: string, patch: Partial<PlaylistBrief>): Promise<ChangeResult> {
+  const p = await ownedPlaylist(userId, id);
+  const r = await regenerate(userId, p, patch, { kind: "brief", input: JSON.stringify(patch) });
   r.message = diffText(p.brief.lang, r.diff);
   return r;
 }
 
-export function applyMakeIt(userId: string, id: string, preset: MakeItPreset): ChangeResult {
-  const p = ownedPlaylist(userId, id);
-  const r = regenerate(userId, p, presetPatch(p.brief, preset), { kind: "preset", input: preset, keepBonus: 0.06 });
+export async function applyMakeIt(userId: string, id: string, preset: MakeItPreset): Promise<ChangeResult> {
+  const p = await ownedPlaylist(userId, id);
+  const r = await regenerate(userId, p, presetPatch(p.brief, preset), { kind: "preset", input: preset, keepBonus: 0.06 });
   r.message = diffText(p.brief.lang, r.diff);
   return r;
 }
 
 export async function editWithText(userId: string, id: string, text: string): Promise<ChangeResult> {
-  const p = ownedPlaylist(userId, id);
-  const tracks = repo.getTracks(p.tracks.map((t) => t.trackId));
+  const p = await ownedPlaylist(userId, id);
+  const tracks = await repo.getTracks(p.tracks.map((t) => t.trackId));
   const plan = planEdit(text, p.brief, tracks.map((t) => ({ id: t.id, title: t.title, artist: t.artist })));
   const lang = p.brief.lang;
   let patch = plan.patch;
@@ -245,17 +247,17 @@ export async function editWithText(userId: string, id: string, text: string): Pr
   }
   if (!Object.keys(patch).length && !drop.length && !plan.reseed) {
     return {
-      playlist: hydrate(p, userId),
+      playlist: await hydrate(p, userId),
       diff: { kept: p.tracks.length, added: 0, removed: 0 },
       message: lang === "en"
         ? "I didn't quite catch that. Try e.g. “first 30 minutes calmer”, “more 2000s”, “no Sezen Aksu”."
         : "Tam anlayamadım. Örneğin “ilk 30 dakika daha sakin”, “biraz daha 2000'ler”, “Sezen Aksu olmasın” diyebilirsin.",
     };
   }
-  const r = regenerate(userId, p, patch, { kind: "edit", input: text, reseed: plan.reseed, dropIds: drop, keepBonus: 0.25 });
+  const r = await regenerate(userId, p, patch, { kind: "edit", input: text, reseed: plan.reseed, dropIds: drop, keepBonus: 0.25 });
   for (const tid of drop) {
-    const t = repo.getTrack(tid);
-    if (t) learn(userId, (x) => applyFeedback(x, "remove", t));
+    const t = await repo.getTrack(tid);
+    if (t) await learn(userId, (x) => applyFeedback(x, "remove", t));
   }
   r.message = reply || `${editAck(lang, plan.notes)} ${diffText(lang, r.diff)}`.trim();
   return r;
@@ -300,35 +302,35 @@ function editAck(lang: "tr" | "en", notes: string[]): string {
 }
 
 // ── Track-level operations ─────────────────────────────────────
-function rebuildDerived(p: StoredPlaylist, tracks: MusicTrack[], pts: StoredPlaylist["tracks"], userId: string): StoredPlaylist {
+async function rebuildDerived(p: StoredPlaylist, tracks: MusicTrack[], pts: StoredPlaylist["tracks"], userId: string): Promise<StoredPlaylist> {
   const roles = assignRoles(tracks, p.brief);
   const linked = relink(pts.map((t, i) => ({ ...t, role: pts[i].role ?? roles[i] })), tracks);
-  return repo.savePlaylist({
+  return await repo.savePlaylist({
     ...p,
     tracks: linked,
-    dna: computeDNA(tracks, toSignals(repo.getTaste(userId))),
+    dna: computeDNA(tracks, toSignals(await repo.getTaste(userId))),
     stats: computeStats(tracks),
     explanation: explainPlaylist(p.brief, tracks, linked.map((t) => t.role)),
   });
 }
 
-export function replaceTrack(userId: string, id: string, position: number, reason: ReplaceReason = "replace", choiceId?: string): ChangeResult & { replacedWith?: MusicTrack } {
-  const p = ownedPlaylist(userId, id);
-  const tracks = repo.getTracks(p.tracks.map((t) => t.trackId));
+export async function replaceTrack(userId: string, id: string, position: number, reason: ReplaceReason = "replace", choiceId?: string): Promise<ChangeResult & { replacedWith?: MusicTrack }> {
+  const p = await ownedPlaylist(userId, id);
+  const tracks = await repo.getTracks(p.tracks.map((t) => t.trackId));
   const old = tracks[position];
   if (!old) throw new HttpError(400, "Invalid position");
-  const ctx = buildContext(userId, p.brief);
+  const ctx = await buildContext(userId, p.brief);
   let pick: MusicTrack | undefined;
   let message = "";
   if (choiceId) {
-    pick = repo.getTrack(choiceId);
+    pick = await repo.getTrack(choiceId);
     message = p.brief.lang === "en" ? `Swapped in "${pick?.title}".` : `"${pick?.title}" geldi.`;
   } else {
     const r = findReplacement(p.brief, tracks, position, p.tracks[position].role, ctx, reason);
     if (r) { pick = r.track; message = r.message; }
   }
-  if (!pick) return { playlist: hydrate(p, userId), message: p.brief.lang === "en" ? "No good alternative found." : "Uygun bir alternatif bulamadım.", diff: { kept: p.tracks.length, added: 0, removed: 0 } };
-  repo.logSession(p.id, "replace", `${position}:${reason}`, `${old.id}→${pick.id}`, p);
+  if (!pick) return { playlist: await hydrate(p, userId), message: p.brief.lang === "en" ? "No good alternative found." : "Uygun bir alternatif bulamadım.", diff: { kept: p.tracks.length, added: 0, removed: 0 } };
+  await repo.logSession(p.id, "replace", `${position}:${reason}`, `${old.id}→${pick.id}`, p);
   const newTracks = tracks.slice();
   newTracks[position] = pick;
   const pts = p.tracks.slice();
@@ -336,152 +338,152 @@ export function replaceTrack(userId: string, id: string, position: number, reaso
   // Removing for good: exclude from future regenerations of this playlist.
   let brief = p.brief;
   if (reason !== "replace" && reason !== "unavailable") brief = applyPatch(p.brief, { exclude: { artists: [], trackIds: [old.id], trackNames: [], genres: [], tags: [] } }, false);
-  const saved = rebuildDerived({ ...p, brief }, newTracks, pts, userId);
+  const saved = await rebuildDerived({ ...p, brief }, newTracks, pts, userId);
   const total = tracks.reduce((s, t) => s + t.durationSec, 0);
   const before = tracks.slice(0, position).reduce((s, t) => s + t.durationSec, 0);
   const targetEnergy = energyAt(p.brief, (before + old.durationSec / 2) / Math.max(1, total));
-  if (reason !== "unavailable") learn(userId, (t) => applyFeedback(t, reason === "dislike" ? "dislike" : reason === "never" ? "never" : reason === "remove" ? "remove" : "replace", old, { targetEnergy }));
-  return { playlist: hydrate(saved, userId), message, diff: { kept: p.tracks.length - 1, added: 1, removed: 1 }, replacedWith: pick };
+  if (reason !== "unavailable") await learn(userId, (t) => applyFeedback(t, reason === "dislike" ? "dislike" : reason === "never" ? "never" : reason === "remove" ? "remove" : "replace", old, { targetEnergy }));
+  return { playlist: await hydrate(saved, userId), message, diff: { kept: p.tracks.length - 1, added: 1, removed: 1 }, replacedWith: pick };
 }
 
-export function alternativesFor(userId: string, id: string, position: number): MusicTrack[] {
-  const p = ownedPlaylist(userId, id);
-  const tracks = repo.getTracks(p.tracks.map((t) => t.trackId));
-  const r = findReplacement(p.brief, tracks, position, p.tracks[position]?.role ?? "warmup", buildContext(userId, p.brief), "replace");
+export async function alternativesFor(userId: string, id: string, position: number): Promise<MusicTrack[]> {
+  const p = await ownedPlaylist(userId, id);
+  const tracks = await repo.getTracks(p.tracks.map((t) => t.trackId));
+  const r = findReplacement(p.brief, tracks, position, p.tracks[position]?.role ?? "warmup", await buildContext(userId, p.brief), "replace");
   return r ? [r.track, ...r.alternatives] : [];
 }
 
-export function giveFeedback(userId: string, id: string, position: number, kind: "like" | "love" | "dislike" | "never"): ChangeResult {
-  const p = ownedPlaylist(userId, id);
+export async function giveFeedback(userId: string, id: string, position: number, kind: "like" | "love" | "dislike" | "never"): Promise<ChangeResult> {
+  const p = await ownedPlaylist(userId, id);
   const pt = p.tracks[position];
-  const track = pt ? repo.getTrack(pt.trackId) : undefined;
+  const track = pt ? await repo.getTrack(pt.trackId) : undefined;
   if (!track) throw new HttpError(400, "Invalid position");
-  repo.addFeedback(userId, id, track.id, track.artist, kind, { role: pt.role });
+  await repo.addFeedback(userId, id, track.id, track.artist, kind, { role: pt.role });
   if (kind === "dislike" || kind === "never") {
     // replaceTrack also records the taste signal.
-    return replaceTrack(userId, id, position, kind);
+    return await replaceTrack(userId, id, position, kind);
   }
-  learn(userId, (t) => applyFeedback(t, kind as FeedbackKind, track));
+  await learn(userId, (t) => applyFeedback(t, kind as FeedbackKind, track));
   const lang = p.brief.lang;
   return {
-    playlist: hydrate(p, userId),
+    playlist: await hydrate(p, userId),
     diff: { kept: p.tracks.length, added: 0, removed: 0 },
     message: kind === "love" ? (lang === "en" ? "Noted — more like this in the future." : "Not ettim — ileride bunun gibilerini daha çok koyacağım.") : lang === "en" ? "Thanks!" : "Teşekkürler!",
   };
 }
 
-export function removeTrack(userId: string, id: string, position: number, withReplacement = true): ChangeResult {
-  if (withReplacement) return replaceTrack(userId, id, position, "remove");
-  const p = ownedPlaylist(userId, id);
-  const tracks = repo.getTracks(p.tracks.map((t) => t.trackId));
+export async function removeTrack(userId: string, id: string, position: number, withReplacement = true): Promise<ChangeResult> {
+  if (withReplacement) return await replaceTrack(userId, id, position, "remove");
+  const p = await ownedPlaylist(userId, id);
+  const tracks = await repo.getTracks(p.tracks.map((t) => t.trackId));
   const old = tracks[position];
-  repo.logSession(p.id, "remove", String(position), old?.id ?? "", p);
+  await repo.logSession(p.id, "remove", String(position), old?.id ?? "", p);
   const newTracks = tracks.filter((_, i) => i !== position);
   const pts = p.tracks.filter((_, i) => i !== position);
   const brief = old ? applyPatch(p.brief, { exclude: { artists: [], trackIds: [old.id], trackNames: [], genres: [], tags: [] } }, false) : p.brief;
-  const saved = rebuildDerived({ ...p, brief }, newTracks, pts, userId);
-  if (old) learn(userId, (t) => applyFeedback(t, "remove", old));
-  return { playlist: hydrate(saved, userId), message: "", diff: { kept: pts.length, added: 0, removed: 1 } };
+  const saved = await rebuildDerived({ ...p, brief }, newTracks, pts, userId);
+  if (old) await learn(userId, (t) => applyFeedback(t, "remove", old));
+  return { playlist: await hydrate(saved, userId), message: "", diff: { kept: pts.length, added: 0, removed: 1 } };
 }
 
-export function moveTrack(userId: string, id: string, from: number, to: number): ChangeResult {
-  const p = ownedPlaylist(userId, id);
+export async function moveTrack(userId: string, id: string, from: number, to: number): Promise<ChangeResult> {
+  const p = await ownedPlaylist(userId, id);
   const pts = p.tracks.slice();
   const [m] = pts.splice(from, 1);
   pts.splice(Math.max(0, Math.min(pts.length, to)), 0, m);
-  repo.logSession(p.id, "move", `${from}->${to}`, "", p);
-  const saved = rebuildDerived(p, repo.getTracks(pts.map((t) => t.trackId)), pts, userId);
-  return { playlist: hydrate(saved, userId), message: "", diff: { kept: pts.length, added: 0, removed: 0 } };
+  await repo.logSession(p.id, "move", `${from}->${to}`, "", p);
+  const saved = await rebuildDerived(p, await repo.getTracks(pts.map((t) => t.trackId)), pts, userId);
+  return { playlist: await hydrate(saved, userId), message: "", diff: { kept: pts.length, added: 0, removed: 0 } };
 }
 
-export function toggleLock(userId: string, id: string, position: number): ChangeResult {
-  const p = ownedPlaylist(userId, id);
+export async function toggleLock(userId: string, id: string, position: number): Promise<ChangeResult> {
+  const p = await ownedPlaylist(userId, id);
   const pt = p.tracks[position];
   if (!pt) throw new HttpError(400, "Invalid position");
   const locked = !pt.locked;
   const include = { ...p.brief.include, trackIds: locked ? [...new Set([...p.brief.include.trackIds, pt.trackId])] : p.brief.include.trackIds.filter((x) => x !== pt.trackId) };
   const brief = { ...p.brief, include };
   const pts = p.tracks.map((t, i) => (i === position ? { ...t, locked } : t));
-  const saved = repo.savePlaylist({ ...p, brief, tracks: pts });
-  const t = repo.getTrack(pt.trackId);
-  if (locked && t) learn(userId, (x) => applyFeedback(x, "include", t));
-  return { playlist: hydrate(saved, userId), message: "", diff: { kept: pts.length, added: 0, removed: 0 } };
+  const saved = await repo.savePlaylist({ ...p, brief, tracks: pts });
+  const t = await repo.getTrack(pt.trackId);
+  if (locked && t) await learn(userId, (x) => applyFeedback(x, "include", t));
+  return { playlist: await hydrate(saved, userId), message: "", diff: { kept: pts.length, added: 0, removed: 0 } };
 }
 
-export function includeTrack(userId: string, id: string, trackId: string): ChangeResult {
-  const p = ownedPlaylist(userId, id);
-  const t = repo.getTrack(trackId);
+export async function includeTrack(userId: string, id: string, trackId: string): Promise<ChangeResult> {
+  const p = await ownedPlaylist(userId, id);
+  const t = await repo.getTrack(trackId);
   if (!t) throw new HttpError(404, "Track not found");
-  const r = regenerate(userId, p, { include: { artists: [], trackIds: [trackId], trackNames: [], genres: [], tags: [] } }, { kind: "include", input: trackId });
-  learn(userId, (x) => applyFeedback(x, "include", t));
+  const r = await regenerate(userId, p, { include: { artists: [], trackIds: [trackId], trackNames: [], genres: [], tags: [] } }, { kind: "include", input: trackId });
+  await learn(userId, (x) => applyFeedback(x, "include", t));
   r.message = p.brief.lang === "en" ? `"${t.title}" is in — placed where it fits the flow.` : `"${t.title}" eklendi — akışta en uygun yere yerleştirdim.`;
   return r;
 }
 
-export function setIncludeExclude(userId: string, id: string, which: "include" | "exclude", ie: StoredPlaylist["brief"]["include"]): ChangeResult {
-  const p = ownedPlaylist(userId, id);
+export async function setIncludeExclude(userId: string, id: string, which: "include" | "exclude", ie: StoredPlaylist["brief"]["include"]): Promise<ChangeResult> {
+  const p = await ownedPlaylist(userId, id);
   const patch = { [which]: { ...ie, replace: true } } as Partial<PlaylistBrief>;
-  const r = regenerate(userId, p, patch, { kind: which, input: JSON.stringify(ie) });
+  const r = await regenerate(userId, p, patch, { kind: which, input: JSON.stringify(ie) });
   r.message = diffText(p.brief.lang, r.diff);
   return r;
 }
 
-export function acceptSuggestion(userId: string, id: string, suggestionId: string, accept: boolean): ChangeResult {
-  const p = ownedPlaylist(userId, id);
+export async function acceptSuggestion(userId: string, id: string, suggestionId: string, accept: boolean): Promise<ChangeResult> {
+  const p = await ownedPlaylist(userId, id);
   const s = p.suggestions.find((x) => x.id === suggestionId);
   if (!s) throw new HttpError(404, "Suggestion not found");
   if (!accept) {
-    const saved = repo.savePlaylist({ ...p, suggestions: p.suggestions.filter((x) => x.id !== suggestionId) });
-    return { playlist: hydrate(saved, userId), message: p.brief.lang === "en" ? "Keeping it as is." : "Olduğu gibi bırakıyorum.", diff: { kept: p.tracks.length, added: 0, removed: 0 } };
+    const saved = await repo.savePlaylist({ ...p, suggestions: p.suggestions.filter((x) => x.id !== suggestionId) });
+    return { playlist: await hydrate(saved, userId), message: p.brief.lang === "en" ? "Keeping it as is." : "Olduğu gibi bırakıyorum.", diff: { kept: p.tracks.length, added: 0, removed: 0 } };
   }
-  const r = regenerate(userId, p, s.acceptPatch, { kind: "suggestion", input: suggestionId });
-  const saved = repo.savePlaylist({ ...repo.getPlaylist(id)!, suggestions: [] });
-  r.playlist = hydrate(saved, userId);
+  const r = await regenerate(userId, p, s.acceptPatch, { kind: "suggestion", input: suggestionId });
+  const saved = await repo.savePlaylist({ ...(await repo.getPlaylist(id))!, suggestions: [] });
+  r.playlist = await hydrate(saved, userId);
   r.message = diffText(p.brief.lang, r.diff);
   return r;
 }
 
-export function undo(userId: string, id: string): HydratedPlaylist {
-  const p = ownedPlaylist(userId, id);
-  const snap = repo.popSnapshot(p.id);
+export async function undo(userId: string, id: string): Promise<HydratedPlaylist> {
+  const p = await ownedPlaylist(userId, id);
+  const snap = await repo.popSnapshot(p.id);
   if (!snap) throw new HttpError(409, "Nothing to undo");
-  const restored = repo.savePlaylist({ ...snap, id: p.id, userId, saved: p.saved, shareId: p.shareId });
-  return hydrate(restored, userId);
+  const restored = await repo.savePlaylist({ ...snap, id: p.id, userId, saved: p.saved, shareId: p.shareId });
+  return await hydrate(restored, userId);
 }
 
-export function duplicate(userId: string, id: string): HydratedPlaylist {
-  const p = repo.getPlaylist(id);
+export async function duplicate(userId: string, id: string): Promise<HydratedPlaylist> {
+  const p = await repo.getPlaylist(id);
   if (!p) throw new HttpError(404, "Playlist not found");
-  const copy = repo.savePlaylist({ ...p, id: `pl_${randomId(8)}`, userId, title: `${p.title} (copy)`, saved: false, shareId: null, parentId: p.id, createdAt: undefined });
-  return hydrate(copy, userId);
+  const copy = await repo.savePlaylist({ ...p, id: `pl_${randomId(8)}`, userId, title: `${p.title} (copy)`, saved: false, shareId: null, parentId: p.id, createdAt: undefined });
+  return await hydrate(copy, userId);
 }
 
-export function setSaved(userId: string, id: string, saved: boolean, title?: string): HydratedPlaylist {
-  const p = ownedPlaylist(userId, id);
-  const out = repo.savePlaylist({ ...p, saved, title: title?.trim() ? title.trim().slice(0, 120) : p.title, brief: title?.trim() ? { ...p.brief, title: title.trim().slice(0, 120) } : p.brief });
+export async function setSaved(userId: string, id: string, saved: boolean, title?: string): Promise<HydratedPlaylist> {
+  const p = await ownedPlaylist(userId, id);
+  const out = await repo.savePlaylist({ ...p, saved, title: title?.trim() ? title.trim().slice(0, 120) : p.title, brief: title?.trim() ? { ...p.brief, title: title.trim().slice(0, 120) } : p.brief });
   if (saved) {
-    const tracks = repo.getTracks(p.tracks.map((t) => t.trackId));
-    learn(userId, (t) => tracks.reduce((acc, tr) => applyFeedback(acc, "keep", tr), t));
+    const tracks = await repo.getTracks(p.tracks.map((t) => t.trackId));
+    await learn(userId, (t) => tracks.reduce((acc, tr) => applyFeedback(acc, "keep", tr), t));
   }
-  return hydrate(out, userId);
+  return await hydrate(out, userId);
 }
 
-export function share(userId: string, id: string): string {
-  const p = ownedPlaylist(userId, id);
+export async function share(userId: string, id: string): Promise<string> {
+  const p = await ownedPlaylist(userId, id);
   if (p.shareId) return p.shareId;
   const shareId = randomId(6);
-  repo.savePlaylist({ ...p, shareId });
+  await repo.savePlaylist({ ...p, shareId });
   return shareId;
 }
 
-export function addJournalEntry(userId: string, playlistId: string | null, text: string) {
+export async function addJournalEntry(userId: string, playlistId: string | null, text: string): Promise<ReturnType<typeof journalSignals>> {
   const sig = journalSignals(text);
-  repo.addJournal(userId, playlistId, text.slice(0, 2000), sig);
-  learn(userId, (t) => {
+  await repo.addJournal(userId, playlistId, text.slice(0, 2000), sig);
+  await learn(userId, async (t) => {
     const next = { ...t, energyBias: Math.max(-1.5, Math.min(1.5, t.energyBias + sig.energyBias)), discoveryBias: Math.max(-20, Math.min(30, t.discoveryBias + sig.discoveryBias)) };
     if (playlistId && (sig.positive || sig.negative)) {
-      const p = repo.getPlaylist(playlistId);
-      const tracks = p ? repo.getTracks(p.tracks.map((x) => x.trackId)) : [];
+      const p = await repo.getPlaylist(playlistId);
+      const tracks = p ? await repo.getTracks(p.tracks.map((x) => x.trackId)) : [];
       return tracks.reduce((acc, tr) => applyFeedback(acc, sig.positive ? "keep" : "replace", tr), next);
     }
     return next;
@@ -498,7 +500,7 @@ export async function importTracks(userId: string, name: string, items: { title:
     const match = seeds.find((t) => slugify(t.title) === slugify(it.title) && slugify(t.artist).includes(slugify(it.artist.split(/\s*[&,]\s*/)[0])));
     if (match) { ids.push(match.id); continue; }
     const id = `imp:${slugify(it.artist)}--${slugify(it.title)}`;
-    const existing = repo.getTrack(id);
+    const existing = await repo.getTrack(id);
     if (!existing) {
       const rp = parseIntentRules(`${it.artist} ${it.title}`);
       const tr = /[çğıöşü]/i.test(`${it.title} ${it.artist}`);
@@ -511,16 +513,16 @@ export async function importTracks(userId: string, name: string, items: { title:
     ids.push(id);
   }
   const { tracks: measured } = await enrichTracks(fresh, { budgetMs: Number(process.env.ENRICH_BUDGET_MS || 10000) }).catch(() => ({ tracks: fresh }));
-  for (const t of measured) repo.upsertTrack(t);
-  const tracks = repo.getTracks(ids);
+  for (const t of measured) await repo.upsertTrack(t);
+  const tracks = await repo.getTracks(ids);
   const brief = defaultImportBrief(tracks);
   const pts = tracks.map((t, i) => ({ trackId: t.id, position: i, role: "warmup" as const, transitionIn: null, locked: false }));
-  const p = repo.savePlaylist({
+  const p = await repo.savePlaylist({
     id: `pl_${randomId(8)}`, userId, title: name.slice(0, 120) || "Imported playlist", prompt: "import", brief, interpretation: "", explanation: "",
     dna: computeDNA(tracks), stats: computeStats(tracks), flowTarget: [], suggestions: [], warnings: tracks.some((t) => t.estimated) ? ["Some tracks are not in the Sommelier catalog — their features are estimated."] : [],
     saved: true, shareId: null, parentId: null, tracks: relink(pts.map((x, i) => ({ ...x, role: assignRoles(tracks, brief)[i] })), tracks),
   });
-  return hydrate(p, userId);
+  return await hydrate(p, userId);
 }
 
 function defaultImportBrief(tracks: MusicTrack[]): PlaylistBrief {
@@ -539,21 +541,21 @@ function defaultImportBrief(tracks: MusicTrack[]): PlaylistBrief {
   return { ...base, seed: hashSeed(tracks.map((t) => t.id).join()), lang: "tr", referenceTrackIds: tracks.map((t) => t.id) };
 }
 
-export function gamification(userId: string) {
+export async function gamification(userId: string) {
   const now = Date.now();
   const week = now - 7 * 864e5, month = now - 30 * 864e5;
-  const taste = repo.getTaste(userId);
+  const taste = await repo.getTaste(userId);
   const newArtists = Object.values(taste.artistsSeen).filter((ts) => ts >= month).length;
-  const fb = repo.feedbackSince(userId, month);
+  const fb = await repo.feedbackSince(userId, month);
   const genreDelta: Record<string, number> = {};
   for (const f of fb) {
     if (!f.trackId || !["like", "love"].includes(f.kind)) continue;
-    const t = repo.getTrack(f.trackId);
+    const t = await repo.getTrack(f.trackId);
     for (const g of t?.genres ?? []) genreDelta[g] = (genreDelta[g] ?? 0) + 1;
   }
   const topNew = Object.entries(genreDelta).sort((a, b) => b[1] - a[1])[0];
   return {
-    playlistsThisWeek: repo.playlistCountSince(userId, week),
+    playlistsThisWeek: await repo.playlistCountSince(userId, week),
     newArtistsThisMonth: newArtists,
     tasteExpansion: topNew ? { genre: topNew[0], likes: topNew[1] } : null,
     year: CURRENT_YEAR,

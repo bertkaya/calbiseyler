@@ -16,10 +16,10 @@ export const POST = route(async (req: Request, { params }: Ctx) => {
   const userId = await requireUser();
   const { id } = await params;
   const { provider: pid } = await body(req, z.object({ provider: z.enum(["spotify", "apple", "deezer", "youtube"]) }));
-  const p = getPlaylist(id);
+  const p = await getPlaylist(id);
   if (!p || p.userId !== userId) throw new HttpError(404, "Playlist not found");
   const prov = provider(pid)!;
-  const tracks = getTracks(p.tracks.map((t) => t.trackId));
+  const tracks = await getTracks(p.tracks.map((t) => t.trackId));
   const auth = (await authFor(userId, pid)) ?? undefined;
   // Search needs either an app credential or (YouTube without API key) the user's account.
   const canSearch = prov.capabilities.search && prov.isConfigured() && (!prov.capabilities.requiresUserAuthForSearch || !!auth);
@@ -39,7 +39,7 @@ export const POST = route(async (req: Request, { params }: Ctx) => {
   const matches = await matchTracks(tracks, prov, searchAuth);
 
   // For missing tracks, propose (never auto-apply) a same-role alternative that exists on the platform.
-  const ctx = buildContext(userId, p.brief);
+  const ctx = await buildContext(userId, p.brief);
   const suggestions = [];
   for (let i = 0; i < matches.length && suggestions.length < 8; i++) {
     if (matches[i].status !== "unavailable") continue;

@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 
 export const GET = route(async () => {
   const userId = await requireUser();
-  const items = listPlaylists(userId).map((p) => ({ id: p.id, title: p.title, stats: p.stats, dna: p.dna, saved: p.saved, updatedAt: p.updatedAt, activity: p.brief.activity, moods: p.brief.moods }));
+  const items = (await listPlaylists(userId)).map((p) => ({ id: p.id, title: p.title, stats: p.stats, dna: p.dna, saved: p.saved, updatedAt: p.updatedAt, activity: p.brief.activity, moods: p.brief.moods }));
   return json({ items });
 });
 

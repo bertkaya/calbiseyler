@@ -8,6 +8,7 @@
  */
 import type { ImportedPlaylist, MusicProvider, ProviderAuth, ProviderTrackRef, TrackQuery } from "./types";
 import { ProviderError, fetchJson } from "./types";
+import { appUrl } from "../server/app-url";
 
 const API = "https://api.spotify.com/v1";
 const ACCOUNTS = "https://accounts.spotify.com";
@@ -16,7 +17,7 @@ export const SPOTIFY_SCOPES = ["playlist-modify-private", "playlist-modify-publi
 const env = () => ({
   clientId: process.env.SPOTIFY_CLIENT_ID ?? "",
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET ?? "",
-  redirectUri: process.env.SPOTIFY_REDIRECT_URI ?? `${process.env.APP_URL ?? "http://127.0.0.1:3000"}/api/auth/spotify/callback`,
+  redirectUri: process.env.SPOTIFY_REDIRECT_URI ?? `${appUrl()}/api/auth/spotify/callback`,
 });
 
 interface SpTrack {

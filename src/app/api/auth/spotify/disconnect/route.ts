@@ -6,6 +6,6 @@ export const runtime = "nodejs";
 
 export const POST = route(async () => {
   const userId = await requireUser();
-  deleteConnection(userId, "spotify");
+  await deleteConnection(userId, "spotify");
   return json({ ok: true });
 });

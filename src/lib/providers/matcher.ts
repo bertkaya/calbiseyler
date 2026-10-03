@@ -53,7 +53,7 @@ export function scoreCandidate(t: MusicTrack, c: ProviderTrackRef): { score: num
 }
 
 export async function matchTrack(t: MusicTrack, p: MusicProvider, auth?: ProviderAuth): Promise<TrackMatch> {
-  const cached = getCachedMatch<TrackMatch>(t.id, p.id, p.id === "youtube" ? 30 * 864e5 : undefined);
+  const cached = await getCachedMatch<TrackMatch>(t.id, p.id, p.id === "youtube" ? 30 * 864e5 : undefined);
   if (cached) return cached;
   try {
     const cands = await p.search({ title: t.title, artist: t.artist, durationSec: t.durationSec, isrc: t.isrc }, auth);
@@ -66,7 +66,7 @@ export async function matchTrack(t: MusicTrack, p: MusicProvider, auth?: Provide
     if (best && best.score >= 0.82) m = { trackId: t.id, status: "available", confidence: best.score, ref: best.c };
     else if (best && best.score >= 0.6) m = { trackId: t.id, status: "alternative", confidence: best.score, ref: best.c, note: best.note ?? "different version" };
     else m = { trackId: t.id, status: "unavailable", confidence: best?.score ?? 0 };
-    cacheMatch(t.id, p.id, m);
+    await cacheMatch(t.id, p.id, m);
     return m;
   } catch (e) {
     return { trackId: t.id, status: "unknown", confidence: 0, note: (e as Error).message };

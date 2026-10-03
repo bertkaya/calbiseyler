@@ -13,6 +13,7 @@
  */
 import type { MusicProvider, ProviderAuth, ProviderTrackRef, TrackQuery } from "./types";
 import { ProviderError, fetchJson } from "./types";
+import { appUrl } from "../server/app-url";
 
 const API = "https://www.googleapis.com/youtube/v3";
 const AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -23,7 +24,7 @@ const env = () => ({
   clientId: process.env.GOOGLE_CLIENT_ID ?? "",
   clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
   apiKey: process.env.YOUTUBE_API_KEY ?? "",
-  redirectUri: process.env.GOOGLE_REDIRECT_URI ?? `${process.env.APP_URL ?? "http://127.0.0.1:3000"}/api/auth/google/callback`,
+  redirectUri: process.env.GOOGLE_REDIRECT_URI ?? `${appUrl()}/api/auth/google/callback`,
 });
 
 export const youtubeOAuthConfigured = () => !!env().clientId && !!env().clientSecret;

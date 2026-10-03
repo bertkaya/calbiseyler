@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ shareId: string }> };
 export const POST = route(async (_req: Request, { params }: Ctx) => {
   const userId = await requireUser();
   const { shareId } = await params;
-  const p = getPlaylistByShare(shareId);
+  const p = await getPlaylistByShare(shareId);
   if (!p) throw new HttpError(404, "Not found");
-  return json({ playlist: duplicate(userId, p.id) }, { status: 201 });
+  return json({ playlist: await duplicate(userId, p.id) }, { status: 201 });
 });

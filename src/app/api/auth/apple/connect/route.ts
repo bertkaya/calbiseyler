@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const POST = route(async (req: Request) => {
   const userId = await requireUser();
   const { musicUserToken, storefront } = await body(req, z.object({ musicUserToken: z.string().min(20).max(4000), storefront: z.string().max(8).optional() }));
-  saveConnection(userId, {
+  await saveConnection(userId, {
     provider: "apple",
     accessTokenEnc: encrypt(musicUserToken),
     refreshTokenEnc: null,

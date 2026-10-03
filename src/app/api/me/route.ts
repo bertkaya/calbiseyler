@@ -18,13 +18,13 @@ export const runtime = "nodejs";
 
 export const GET = route(async () => {
   const userId = await requireUser();
-  const user = getUser(userId);
+  const user = await getUser(userId);
   return json({
     learningPaused: user?.learningPaused ?? false,
-    taste: describeTaste(getTaste(userId)),
-    theme: getTheme(userId),
-    connections: listConnections(userId),
-    stats: gamification(userId),
+    taste: describeTaste(await getTaste(userId)),
+    theme: await getTheme(userId),
+    connections: await listConnections(userId),
+    stats: await gamification(userId),
     providers: providerStatus(),
     youtube: { oauth: youtubeOAuthConfigured(), apiKey: youtubeApiKeyConfigured() },
     llm: llmEnabled(),
@@ -40,14 +40,14 @@ export const GET = route(async () => {
 export const PATCH = route(async (req: Request) => {
   const userId = await requireUser();
   const b = await body(req, z.object({ learningPaused: z.boolean() }));
-  setLearningPaused(userId, b.learningPaused);
+  await setLearningPaused(userId, b.learningPaused);
   return json({ ok: true });
 });
 
 /** Delete every trace of this user (playlists, taste, journal, connections). */
 export const DELETE = route(async () => {
   const userId = await requireUser();
-  deleteUserData(userId);
+  await deleteUserData(userId);
   (await cookies()).delete(USER_COOKIE);
   return json({ ok: true });
 });

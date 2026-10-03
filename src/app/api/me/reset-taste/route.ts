@@ -6,6 +6,6 @@ export const runtime = "nodejs";
 
 export const POST = route(async () => {
   const userId = await requireUser();
-  resetTaste(userId);
+  await resetTaste(userId);
   return json({ ok: true });
 });

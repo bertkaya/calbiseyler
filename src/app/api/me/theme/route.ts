@@ -13,6 +13,6 @@ export const PUT = route(async (req: Request) => {
     principles: z.array(z.string().max(200)).max(8).default([]),
     discovery: z.number().min(0).max(100).nullable().default(null),
   }));
-  const theme = saveTheme(userId, b);
+  const theme = await saveTheme(userId, b);
   return json({ theme, appliedDefaults: themeDefaults(theme) });
 });
