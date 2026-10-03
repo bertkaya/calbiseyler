@@ -1,16 +1,19 @@
 import { body, json, route } from "@/lib/server/http";
 import { ActionBody } from "@/lib/server/schemas";
 import { requireUser } from "@/lib/server/session";
+import { enforceLimit } from "@/lib/server/ratelimit";
 import * as svc from "@/lib/server/playlists";
 import type { IncludeExclude } from "@/lib/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 type Ctx = { params: Promise<{ id: string }> };
 
 export const POST = route(async (req: Request, { params }: Ctx) => {
   const userId = await requireUser();
   const { id } = await params;
   const a = await body(req, ActionBody);
+  if (a.action === "edit" || a.action === "preset") await enforceLimit("edit", 60, 3600, userId); // may call the LLM
   switch (a.action) {
     case "edit": return json(await svc.editWithText(userId, id, a.text));
     case "preset": return json(await svc.applyMakeIt(userId, id, a.preset));
