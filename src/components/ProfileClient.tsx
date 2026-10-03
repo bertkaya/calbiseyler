@@ -16,6 +16,7 @@ interface Me {
   providers: { id: string; name: string; configured: boolean }[];
   llm: boolean;
   enrichment: string[];
+  youtube: { oauth: boolean; apiKey: boolean };
   reflection: { tr: string[]; en: string[] };
 }
 interface Entry { id: number; playlistId: string | null; playlistTitle: string | null; text: string; createdAt: number }
@@ -46,7 +47,7 @@ export function ProfileClient() {
   const conn = (p: string) => me.connections.find((c) => c.provider === p);
   const configured = (p: string) => !!me.providers.find((x) => x.id === p)?.configured;
   const genreName = (g: string) => GENRE_LABEL[g as GenreId]?.[lang] ?? g;
-  const disconnect = async (p: "spotify" | "apple", name: string) => { await api(`/api/auth/${p}/disconnect`, { method: "POST" }); await load(); setToast(t("me.disconnected", { p: name })); };
+  const disconnect = async (p: "spotify" | "apple" | "google", name: string) => { await api(`/api/auth/${p}/disconnect`, { method: "POST" }); await load(); setToast(t("me.disconnected", { p: name })); };
 
   return (
     <main>
@@ -146,7 +147,14 @@ export function ProfileClient() {
                   }}>{t("me.connect")}</button>
                 ) : <span className="tiny faint">{t("me.notConfigured")}</span>}
               </div>
-              <div className="row between"><span>YouTube Music</span><span className="tiny faint">{t("me.ytNote")}</span></div>
+              <div className="row between">
+                <span>YouTube Music {conn("youtube") ? <span className="small muted">· {conn("youtube")!.accountName}</span> : null}</span>
+                {conn("youtube") ? (
+                  <button className="btn btn-sm" onClick={() => disconnect("google", "YouTube")}>{t("me.disconnect")}</button>
+                ) : me.youtube.oauth ? (
+                  <a className="btn btn-sm btn-primary" href="/api/auth/google/login?return=/me">{t("me.connect")}</a>
+                ) : <span className="tiny faint">{t("me.ytNote")}</span>}
+              </div>
               <div className="row between"><span>{t("me.deezer")}</span><span className="tiny faint">{configured("deezer") ? t("me.onOff.on") : t("me.onOff.off")}</span></div>
             </div>
           </div>

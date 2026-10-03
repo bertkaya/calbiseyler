@@ -53,7 +53,7 @@ export function scoreCandidate(t: MusicTrack, c: ProviderTrackRef): { score: num
 }
 
 export async function matchTrack(t: MusicTrack, p: MusicProvider, auth?: ProviderAuth): Promise<TrackMatch> {
-  const cached = getCachedMatch<TrackMatch>(t.id, p.id);
+  const cached = getCachedMatch<TrackMatch>(t.id, p.id, p.id === "youtube" ? 30 * 864e5 : undefined);
   if (cached) return cached;
   try {
     const cands = await p.search({ title: t.title, artist: t.artist, durationSec: t.durationSec, isrc: t.isrc }, auth);

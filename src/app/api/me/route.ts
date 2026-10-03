@@ -9,6 +9,7 @@ import { providerStatus } from "@/lib/providers/registry";
 import { llmEnabled } from "@/lib/ai/llm";
 import { REFLECTION_PROMPTS } from "@/lib/taste/theme";
 import { spotifyProvider } from "@/lib/providers/spotify";
+import { youtubeApiKeyConfigured, youtubeOAuthConfigured } from "@/lib/providers/youtube";
 import { deezerProvider } from "@/lib/providers/deezer";
 import { reccoEnabled } from "@/lib/enrich/reccobeats";
 import { getSongBpmEnabled } from "@/lib/enrich/getsongbpm";
@@ -25,6 +26,7 @@ export const GET = route(async () => {
     connections: listConnections(userId),
     stats: gamification(userId),
     providers: providerStatus(),
+    youtube: { oauth: youtubeOAuthConfigured(), apiKey: youtubeApiKeyConfigured() },
     llm: llmEnabled(),
     enrichment: [
       ...(spotifyProvider.isConfigured() && reccoEnabled() ? ["ReccoBeats"] : []),

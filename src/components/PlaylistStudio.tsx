@@ -18,7 +18,7 @@ import { connectAppleMusic } from "./musickit";
 type ProviderId = "spotify" | "apple" | "youtube" | "deezer";
 interface Change { playlist: HydratedPlaylist; message: string; diff?: { kept: number; added: number; removed: number } }
 interface MatchRes {
-  provider: ProviderId; configured: boolean;
+  provider: ProviderId; configured: boolean; needsConnect?: boolean;
   matches: { trackId: string; status: "available" | "alternative" | "unavailable" | "unknown"; confidence: number; note?: string; searchUrl: string; ref?: { url: string; title: string; artist: string } }[];
   summary: { total: number; available: number; alternative: number; unavailable: number; unknown: number };
   suggestions: { position: number; trackId: string; alternative: MusicTrack; message: string }[];
@@ -66,6 +66,9 @@ export function PlaylistStudio({ id }: { id: string }) {
     const s = search.get("spotify");
     if (s === "connected") setToast(tt("pl.spotifyConnected"));
     else if (s) setToast(`Spotify: ${s}`);
+    const y = search.get("youtube");
+    if (y === "connected") setToast(tt("pl.youtubeConnected"));
+    else if (y) setToast(`YouTube: ${y}`);
   }, [search]);
 
   const act = useCallback(async (body: Record<string, unknown>, opts: { echo?: string } = {}) => {
@@ -121,16 +124,16 @@ export function PlaylistStudio({ id }: { id: string }) {
     finally { setMatching(false); }
   }, [id]);
 
-  const push = useCallback(async (provider: "spotify" | "apple", retried = false): Promise<void> => {
+  const push = useCallback(async (provider: "spotify" | "apple" | "youtube", retried = false): Promise<void> => {
     setBusy(true);
     try {
       const r = await api<{ url: string; added: number; skipped: number }>(`/api/playlists/${id}/push`, { method: "POST", body: { provider, acceptAlternatives: acceptAlt } });
       setPushed(r.url);
-      const name = provider === "spotify" ? "Spotify" : "Apple Music";
+      const name = provider === "spotify" ? "Spotify" : provider === "apple" ? "Apple Music" : "YouTube Music";
       setMsgs((m) => [...m, { who: "ai", text: tt("pl.pushed", { p: name, n: r.added, s: r.skipped ? tt("pl.skipped", { n: r.skipped }) : "" }) }]);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        if (provider === "spotify") { window.location.href = (e.data as { connectUrl: string }).connectUrl; return; }
+        if (provider !== "apple") { const u = (e.data as { connectUrl: string | null }).connectUrl; if (u) window.location.href = u; return; }
         if (!retried) {
           // Apple: sign in with MusicKit JS in place, then retry once.
           setToast(tt("pl.appleConnecting"));
@@ -307,8 +310,10 @@ export function PlaylistStudio({ id }: { id: string }) {
             {matching && <p className="small muted" style={{ marginTop: 10 }}><Dots /> {L("Her şarkıyı kontrol ediyorum…", "Checking every track…")}</p>}
             {match && (
               <div style={{ marginTop: 12 }} className="stack">
-                {!match.configured ? (
-                  <p className="small muted">{L("Bu platformun API bağlantısı yapılandırılmamış — her şarkı için arama linkleri hazır.", "This platform's API isn't configured — search links are ready for every track.")}</p>
+                {!match.configured && match.needsConnect ? (
+                  <a className="btn btn-primary btn-sm" href={`/api/auth/google/login?return=/playlist/${id}`}>{tt("pl.connectYoutube")}</a>
+                ) : !match.configured ? (
+                  <p className="small muted">{tt("pl.notConfigured")}</p>
                 ) : (
                   <div className="mono small" style={{ fontWeight: 700 }}>
                     <div>{match.summary.total} {tt("pl.tracks")}</div>
@@ -341,6 +346,12 @@ export function PlaylistStudio({ id }: { id: string }) {
                 )}
                 {match.provider === "apple" && match.configured && (
                   <button className="btn btn-primary" disabled={busy} onClick={() => push("apple")}>{tt("pl.sendApple")}</button>
+                )}
+                {match.provider === "youtube" && match.configured && (
+                  <>
+                    <button className="btn btn-primary" disabled={busy} onClick={() => push("youtube")}>{tt("pl.sendYoutube")}</button>
+                    <p className="tiny faint" style={{ margin: 0 }}>{tt("pl.ytQuota", { n: 50 + items.length * 50 })}</p>
+                  </>
                 )}
                 {pushed && <a className="btn" href={pushed} target="_blank" rel="noreferrer">{tt("pl.openOn")}</a>}
                 <details className="disclosure">

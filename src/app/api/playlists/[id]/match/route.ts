@@ -5,7 +5,7 @@ import { HttpError, buildContext } from "@/lib/server/playlists";
 import { getPlaylist, getTracks } from "@/lib/server/repo";
 import { provider } from "@/lib/providers/registry";
 import { matchTrack, matchTracks, summarize } from "@/lib/providers/matcher";
-import { spotifyAuth } from "@/lib/server/connections";
+import { authFor } from "@/lib/server/connections";
 import { findReplacement } from "@/lib/engine/replace";
 
 export const runtime = "nodejs";
@@ -20,18 +20,23 @@ export const POST = route(async (req: Request, { params }: Ctx) => {
   if (!p || p.userId !== userId) throw new HttpError(404, "Playlist not found");
   const prov = provider(pid)!;
   const tracks = getTracks(p.tracks.map((t) => t.trackId));
-  if (!prov.capabilities.search || !prov.isConfigured()) {
+  const auth = (await authFor(userId, pid)) ?? undefined;
+  // Search needs either an app credential or (YouTube without API key) the user's account.
+  const canSearch = prov.capabilities.search && prov.isConfigured() && (!prov.capabilities.requiresUserAuthForSearch || !!auth);
+  if (!canSearch) {
     // Fail-safe: no API → deep links only, never a crash.
     return json({
       provider: pid,
       configured: false,
+      needsConnect: prov.isConfigured() && prov.capabilities.requiresUserAuthForSearch && !auth,
       matches: tracks.map((t) => ({ trackId: t.id, status: "unknown", confidence: 0, searchUrl: prov.searchUrl(t) })),
       summary: { total: tracks.length, available: 0, alternative: 0, unavailable: 0, unknown: tracks.length },
       suggestions: [],
     });
   }
-  const auth = pid === "spotify" ? (await spotifyAuth(userId)) ?? undefined : undefined;
-  const matches = await matchTracks(tracks, prov, auth);
+  // Apple catalog search uses the developer token, not the user token.
+  const searchAuth = pid === "apple" ? undefined : auth;
+  const matches = await matchTracks(tracks, prov, searchAuth);
 
   // For missing tracks, propose (never auto-apply) a same-role alternative that exists on the platform.
   const ctx = buildContext(userId, p.brief);
@@ -41,7 +46,7 @@ export const POST = route(async (req: Request, { params }: Ctx) => {
     const r = findReplacement(p.brief, tracks, i, p.tracks[i].role, ctx, "unavailable");
     if (!r) continue;
     for (const cand of [r.track, ...r.alternatives].slice(0, 3)) {
-      const m = await matchTrack(cand, prov, auth);
+      const m = await matchTrack(cand, prov, searchAuth);
       if (m.status === "available") {
         suggestions.push({ position: i, trackId: tracks[i].id, alternative: cand, message: r.track.id === cand.id ? r.message : r.message.replace(r.track.title, cand.title).replace(r.track.artist, cand.artist) });
         break;

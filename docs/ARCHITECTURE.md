@@ -108,7 +108,7 @@ kayıt hedefi = Spotify (MVP) → Apple Music → YouTube.
 ### YouTube Music
 - Resmi API yok. `ytmusicapi` gibi gayri resmi kütüphaneler ToS riski taşır → **kullanılmaz**.
 - YouTube Data API v3 ile oluşturulan playlist YouTube Music'te görünür. Quota çok dar: aramayı önbelleğe almak şart.
-- MVP: "Open in YouTube Music" arama linkleri; Phase 2: Data API ile kayıt.
+- Uygulandı: Data API v3 ile kayıt (`src/lib/providers/youtube.ts`). 40 şarkılık playlist ≈ 6.050 kota birimi; eşlemeler 30 gün cache'lenir.
 
 ---
 
@@ -178,7 +178,9 @@ Deezer preview · Apple Music arama/eşleme (token varsa).
 **v2'de eklenenler:** Özellik zenginleştirme hattı (ReccoBeats → GetSongBPM → Deezer) + `catalog:enrich` / `catalog:grow` CLI ·
 LLM varsayılan mod (`SOMMELIER_LLM_MODE=always`) · Apple Music bağlantısı (MusicKit JS) ve kütüphaneye kayıt · TR/EN çift dilli arayüz.
 
-**Açıkça placeholder olanlar:** YouTube Data API ile kayıt · listening behavior (skip/replay) — API'ler izin vermediği için yok.
+**v3:** YouTube Music kaydı — YouTube Data API v3 + Google OAuth (PKCE, offline), resmi ses (Topic/VEVO) öncelikli eşleme, 30 gün eşleme cache'i, kota tahmini.
+
+**Açıkça placeholder olanlar:** listening behavior (skip/replay) — API'ler izin vermediği için yok.
 
 ---
 

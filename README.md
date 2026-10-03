@@ -15,7 +15,7 @@ Playlist DNA, and role-preserving replacements. Then you steer it in plain langu
 cp .env.example .env        # set APP_SECRET (required in production)
 npm install
 npm run dev                 # http://127.0.0.1:3000
-npm test                    # 55 unit/integration tests
+npm test                    # 62 unit/integration tests
 npm run build && npm start
 ```
 
@@ -29,6 +29,7 @@ Optional keys unlock more:
 | `ANTHROPIC_API_KEY` | Claude for rich/ambiguous requests, free-form edits, curation beyond the catalog (verified before export) |
 | `SPOTIFY_CLIENT_ID` (+ `SPOTIFY_CLIENT_SECRET`) | Connect account, availability check, create playlist on Spotify (Feb-2026 API) |
 | `APPLE_MUSIC_*` | Apple Music availability + Connect (MusicKit JS) + save to library |
+| `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (+ `YOUTUBE_API_KEY`) | Connect YouTube, availability check, save to YouTube Music (YouTube Data API v3; ~6k of the 10k daily quota units per 40-track playlist) |
 | `GETSONGBPM_API_KEY` | Tempo/key fallback for catalog enrichment |
 | `SOMMELIER_LLM_MODE` | `always` (default: Claude reads every request/edit) or `auto` (only rich/ambiguous ones) |
 
@@ -68,7 +69,7 @@ Sommelier replies follow the language of each request.
 
 ## Placeholders (explicit)
 
-- YouTube Music saving — no official API; YouTube Data API v3 integration is phase 2 (links only today)
+- YouTube Music has no official API of its own; saving uses the YouTube Data API v3 (playlists appear in YouTube Music). Quota-bound.
 - Seed catalog (~230 tracks) metadata are **editorial estimates**; production should enrich via a features API
 
 ## Layout
