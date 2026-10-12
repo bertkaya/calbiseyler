@@ -67,7 +67,8 @@ function eraScore(t: MusicTrack, brief: PlaylistBrief): number | null {
   const to = brief.eraTo ?? Infinity;
   if (t.year >= from && t.year <= to) return 1;
   const dist = t.year < from ? from - t.year : t.year - to;
-  return Math.exp(-((dist / 5) ** 2));
+  // 3 yıl dışarıda ≈ 0.37, 5 yıl ≈ 0.06: "2000'ler ağırlıklı" kenar yıllara izin verir ama 90'ları ağırlıkla doldurmaz
+  return Math.exp(-((dist / 3) ** 2));
 }
 
 export function familiarity(t: MusicTrack, taste?: TasteSignals | null): number {
@@ -82,7 +83,7 @@ export function fitScore(t: MusicTrack, brief: PlaylistBrief): number {
   if (brief.genres.length) parts.push([genreSetSimilarity(t.genres, brief.genres), 3]);
 
   const era = eraScore(t, brief);
-  if (era !== null) parts.push([era, brief.eraStrict ? 2 : brief.nostalgia >= 8 ? 3 : 2]);
+  if (era !== null) parts.push([era, brief.eraStrict ? 2 : brief.nostalgia >= 8 ? 4 : 3.5]);
 
   if (brief.turkishShare !== null && brief.turkishShare !== 0.5) {
     const s = t.language === "tr" ? brief.turkishShare : 1 - brief.turkishShare;

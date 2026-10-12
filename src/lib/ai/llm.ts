@@ -14,8 +14,58 @@ import { GENRE_IDS } from "../catalog/genres";
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
 const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 25000);
 
+/**
+ * Sağlayıcı: ANTHROPIC_API_KEY varsa Claude; yoksa ücretsiz Gemini anahtarı (GEMINI_API_KEY, aistudio.google.com) varsa Gemini.
+ * İkisi de yoksa AI kapalıdır ve kural tabanlı ayrıştırıcı kullanılır (arayüzde "AI kapalı" olarak gösterilir).
+ */
+export function llmProvider(): "anthropic" | "gemini" | null {
+  if (process.env.SOMMELIER_DISABLE_LLM === "1") return null;
+  if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) return "anthropic";
+  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY) return "gemini";
+  return null;
+}
+
 export function llmEnabled(): boolean {
-  return !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) && process.env.SOMMELIER_DISABLE_LLM !== "1";
+  return llmProvider() !== null;
+}
+
+const GEMINI_MODEL = () => process.env.GEMINI_MODEL || "gemini-flash-latest";
+
+/** Gemini REST (JSON modu). Şema prompt'a eklenir, yanıt zod ile doğrulanır; bozuksa null döner ve kural tabanlı akışa düşülür. */
+async function geminiParse<T extends z.ZodType>(schema: T, system: string, user: string, maxTokens: number, timeoutMs = TIMEOUT_MS): Promise<z.infer<T> | null> {
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
+  const jsonSchema = JSON.stringify(z.toJSONSchema(schema));
+  const body = {
+    systemInstruction: { parts: [{ text: `${system}
+
+Return ONLY a JSON object that validates against this JSON Schema (no prose, no markdown):
+${jsonSchema}` }] },
+    contents: [{ role: "user", parts: [{ text: user }] }],
+    generationConfig: { responseMimeType: "application/json", maxOutputTokens: Math.min(maxTokens, 8192), temperature: 0.4 },
+  };
+  try {
+    let res: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {  // 429/503: geçici yoğunluk, kısa beklemeyle tekrar dene
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL()}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": key! },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (res.status !== 429 && res.status !== 503) break;
+      await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+    }
+    if (!res || !res.ok) { console.warn(`[llm] gemini ${res?.status}`); return null; }
+    const data = await res.json();
+    const text: string | undefined = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("");
+    if (!text) return null;
+    const parsed = schema.safeParse(JSON.parse(text.replace(/^```json\s*|```$/g, "").trim()));
+    if (!parsed.success) { console.warn("[llm] gemini output failed validation"); return null; }
+    return parsed.data as z.infer<T>;
+  } catch (err) {
+    console.warn("[llm] gemini failed:", (err as Error).message);
+    return null;
+  }
 }
 
 /**
@@ -87,8 +137,10 @@ Guidance:
 - Segments express local energy changes in minutes, e.g. "ilk 30 dakika sakin" → {startMin:0,endMin:30,delta:-2.5}.
 Genres: tr-pop, tr-dance, tr-rock, anatolian-rock, tr-alt, tr-rap, arabesk, fantezi, tsm (Turkish classical), thm (Turkish folk), pop, dance, disco-funk, rock, rnb-hiphop, indie, latin, jazz, lounge, electronic.`;
 
-async function parseWith<T extends z.ZodType>(schema: T, system: string, user: string, maxTokens = 4000): Promise<z.infer<T> | null> {
-  if (!llmEnabled()) return null;
+async function parseWith<T extends z.ZodType>(schema: T, system: string, user: string, maxTokens = 4000, timeoutMs = TIMEOUT_MS): Promise<z.infer<T> | null> {
+  const provider = llmProvider();
+  if (!provider) return null;
+  if (provider === "gemini") return geminiParse(schema, system, user, maxTokens, timeoutMs);
   try {
     const res = await anthropic().beta.messages.parse({
       model: MODEL,
@@ -155,5 +207,6 @@ export async function llmCurate(briefSummary: string, avoid: string[], count = 3
 If unsure a song exists exactly as titled, leave it out. Prefer the canonical studio version title.
 Estimate audio features honestly; they will be shown as estimates.`;
   const user = `Brief:\n${briefSummary}\n\nSuggest up to ${count} tracks that fit. Do not include these (already known): ${avoid.slice(0, 150).join("; ")}`;
-  return parseWith(CurateSchema, system, user, 12000);
+  // Uzun liste üretimi niyet anlamadan çok daha yavaş: küratöre ayrı (daha uzun) süre
+  return parseWith(CurateSchema, system, user, 12000, Number(process.env.LLM_CURATE_TIMEOUT_MS || 60000));
 }

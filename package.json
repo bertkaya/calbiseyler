@@ -14,12 +14,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "catalog:enrich": "tsx --env-file-if-exists=.env scripts/catalog.ts enrich",
+    "catalog:verify": "tsx scripts/verify-catalog.ts",
     "catalog:grow": "tsx --env-file-if-exists=.env scripts/catalog.ts grow"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
     "@libsql/client": "^0.18.0",
-    "next": "15.5.27",
+    "next": "^16.4.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "zod": "^4.1.0"

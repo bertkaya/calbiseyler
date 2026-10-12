@@ -52,6 +52,11 @@ export function HomeClient() {
   const [refs, setRefs] = useState<string[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const [aiOn, setAiOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    api<{ llm: boolean }>("/api/me").then((m) => setAiOn(m.llm)).catch(() => {});
+  }, []);
+
   useEffect(() => {
     api<{ items: Recent[] }>("/api/playlists").then((r) => setRecent(r.items)).catch(() => {});
   }, []);
@@ -133,6 +138,9 @@ export function HomeClient() {
               {busy ? <><span className="spinner" /> {t("home.designing")}</> : t("home.create")}
             </button>
           </div>
+          {aiOn !== null && (
+            <p role="status" style={{ margin: "8px 4px 0", fontSize: 12.5, opacity: 0.75 }}>{aiOn ? t("home.aiOn") : t("home.aiOff")}</p>
+          )}
         </form>
 
         <div className="understood" aria-live="polite">

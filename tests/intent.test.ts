@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseIntentRules } from "../src/lib/ai/intent-rules";
 import { planEdit } from "../src/lib/ai/edit-rules";
 import { understand } from "../src/lib/ai/intent";
@@ -129,5 +129,33 @@ describe("natural-language edits", () => {
     const p = planEdit("Bu playlisti al ve daha modern yap", brief, []);
     expect(p.notes).toContain("more_modern");
     expect(p.patch.eraTo).toBeGreaterThan(1999);
+  });
+});
+
+describe("llm provider", () => {
+  const saved = { ...process.env };
+  afterEach(() => { process.env = { ...saved }; vi.restoreAllMocks(); });
+
+  it("picks Gemini when only a Gemini key exists, and reports disabled with no keys", async () => {
+    const { llmProvider, llmEnabled } = await import("../src/lib/ai/llm");
+    delete process.env.SOMMELIER_DISABLE_LLM; delete process.env.ANTHROPIC_API_KEY; delete process.env.ANTHROPIC_AUTH_TOKEN; delete process.env.GEMINI_API_KEY; delete process.env.GOOGLE_GEMINI_API_KEY;
+    expect(llmProvider()).toBeNull();
+    expect(llmEnabled()).toBe(false);
+    process.env.GEMINI_API_KEY = "test-key";
+    expect(llmProvider()).toBe("gemini");
+  });
+
+  it("parses a Gemini JSON reply into a brief and falls back to null on junk", async () => {
+    const { llmParseIntent } = await import("../src/lib/ai/llm");
+    delete process.env.SOMMELIER_DISABLE_LLM; delete process.env.ANTHROPIC_API_KEY; process.env.GEMINI_API_KEY = "test-key";
+    const good = { durationMin: 180, durationStrict: false, turkishShare: 1, languageStrict: true, genres: ["tsm"], excludeGenres: [], avoidGenres: [], moods: ["nostalgic"], activity: "raki",
+      eraFrom: null, eraTo: null, eraStrict: false, energy: 6, danceability: 5, valence: 6, nostalgia: 9, popularity: 8, discovery: null, flow: "gradual_rise", peakPosition: 0.8, segments: [],
+      explicit: null, shuffle: null, singalong: true, includeArtists: [], excludeArtists: [], focusArtists: [], includeTracks: [], excludeTracks: [], avoidTags: [], excludeTags: [], title: "Rakı Sofrası" };
+    const mk = (text: string) => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text }] } }] }) }) as unknown as Response;
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mk(JSON.stringify(good)));
+    const brief = await llmParseIntent("3 saatlik rakı sofrası");
+    expect(brief?.activity).toBe("raki");
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mk("not json"));
+    expect(await llmParseIntent("x")).toBeNull();
   });
 });

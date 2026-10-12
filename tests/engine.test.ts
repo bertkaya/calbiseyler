@@ -167,3 +167,14 @@ describe("quality regressions found in end-to-end testing", () => {
     expect(g2.stats.energyAvg).toBeGreaterThan(g1.stats.energyAvg);
   });
 });
+
+describe("soft era preference", () => {
+  it("'2000'ler ağırlıklı' çoğunlukla 2000'lerden seçer (kenar yıllara izin vererek)", () => {
+    const b = applyPatch(defaultBrief(), { durationMin: 90, eraFrom: 2000, eraTo: 2009, eraStrict: false, energy: 8, danceability: 8, turkishShare: 0.8, genres: ["tr-pop", "pop"], popularity: 8, nostalgia: 7, activity: "party", singalong: true });
+    const g = generatePlaylist(b, { pool });
+    const years = g.tracks.map((t) => pool.find((p) => p.id === t.trackId)?.year ?? 0);
+    const inEra = years.filter((y) => y >= 2000 && y <= 2009).length / years.length;
+    expect(years.length).toBeGreaterThan(8);
+    expect(inEra).toBeGreaterThanOrEqual(0.7);
+  });
+});

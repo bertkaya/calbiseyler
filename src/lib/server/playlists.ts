@@ -68,8 +68,14 @@ async function maybeCurate(brief: PlaylistBrief, ctx: EngineContext): Promise<nu
   if (!llmEnabled() || process.env.SOMMELIER_LLM_CURATE === "0") return 0;
   const eligible = ctx.pool.filter((t) => passesFilters(t, brief, ctx.taste));
   const sec = eligible.reduce((s, t) => s + t.durationSec, 0);
-  if (sec >= brief.durationMin * 60 * 2.2) return 0;
-  const res = await llmCurate(briefSummary(brief), ctx.pool.map((t) => `${t.artist} - ${t.title}`), 30);
+  // Yumuşak tercihler ("2000'ler ağırlıklı", "%80 Türkçe") katı filtrede yok; havuz dolu görünse de tercihe uyan
+  // şarkı azsa motor dönem dışı/dil dışı şarkılarla doldurur. Bu durumda da AI küratörü çağrılır.
+  const preferred = eligible.filter((t) =>
+    (brief.eraFrom == null || (t.year ?? 0) >= brief.eraFrom) && (brief.eraTo == null || (t.year ?? 9999) <= brief.eraTo) &&
+    (brief.turkishShare == null || brief.turkishShare < 0.6 || t.language === "tr"));
+  const preferredSec = preferred.reduce((s, t) => s + t.durationSec, 0);
+  if (sec >= brief.durationMin * 60 * 2.2 && preferredSec >= brief.durationMin * 60 * 1.5) return 0;
+  const res = await llmCurate(briefSummary(brief), ctx.pool.map((t) => `${t.artist} - ${t.title}`), 20);
   if (!res) return 0;
   const added: MusicTrack[] = [];
   for (const s of res.tracks) {
