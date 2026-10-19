@@ -44,5 +44,11 @@ export function Nav() {
 
 export function Footer() {
   const { t } = useT();
-  return <footer className="footer">{t("footer")}</footer>;
+  const feedback = process.env.NEXT_PUBLIC_FEEDBACK_URL;
+  return (
+    <footer className="footer">
+      {t("footer")}
+      {feedback && <> · <a href={feedback} target="_blank" rel="noopener noreferrer">{t("footer.feedback")}</a></>}
+    </footer>
+  );
 }

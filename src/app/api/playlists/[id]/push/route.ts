@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { body, json, route } from "@/lib/server/http";
+import { enforceLimit } from "@/lib/server/ratelimit";
 import { requireUser } from "@/lib/server/session";
 import { HttpError } from "@/lib/server/playlists";
 import { getPlaylist, getTracks, logSession } from "@/lib/server/repo";
@@ -21,6 +22,7 @@ const Body = z.object({
 
 export const POST = route(async (req: Request, { params }: Ctx) => {
   const userId = await requireUser();
+  await enforceLimit("push", 10, 3600, userId);
   const { id } = await params;
   const b = await body(req, Body);
   const p = await getPlaylist(id);

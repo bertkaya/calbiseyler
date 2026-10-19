@@ -43,6 +43,20 @@ export async function deleteUserData(id: string): Promise<void> {
   ]);
 }
 
+/** Retention: remove anonymous users with no activity for `days` days (and stale rate-limit rows). */
+export async function purgeInactive(days = 90, limit = 200): Promise<number> {
+  const cutoff = Date.now() - days * 864e5;
+  const stale = await all<{ id: string }>(
+    `SELECT u.id FROM users u WHERE u.created_at < ?
+       AND NOT EXISTS (SELECT 1 FROM playlists p WHERE p.user_id = u.id AND p.updated_at >= ?)
+       AND NOT EXISTS (SELECT 1 FROM feedback f WHERE f.user_id = u.id AND f.created_at >= ?)
+       AND NOT EXISTS (SELECT 1 FROM provider_connections c WHERE c.user_id = u.id)
+     LIMIT ?`, [cutoff, cutoff, cutoff, limit]);
+  for (const u of stale) await deleteUserData(String(u.id));
+  await run("DELETE FROM rate_limits WHERE window_start < ?", [Date.now() - 864e5]);
+  return stale.length;
+}
+
 // ── Taste ──────────────────────────────────────────────────────
 export async function getTaste(userId: string): Promise<TasteProfileData> {
   const r = await get<Row>("SELECT data FROM taste_profiles WHERE user_id = ?", [userId]);

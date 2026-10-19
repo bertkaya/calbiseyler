@@ -2,10 +2,12 @@ import { body, json, route } from "@/lib/server/http";
 import { CreateBody } from "@/lib/server/schemas";
 import { requireUser } from "@/lib/server/session";
 import { createPlaylist } from "@/lib/server/playlists";
+import { enforceLimit } from "@/lib/server/ratelimit";
 import { listPlaylists } from "@/lib/server/repo";
 import type { PlaylistBrief } from "@/lib/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export const GET = route(async () => {
   const userId = await requireUser();
@@ -15,6 +17,7 @@ export const GET = route(async () => {
 
 export const POST = route(async (req: Request) => {
   const userId = await requireUser();
+  await enforceLimit("create", 20, 3600, userId);
   const b = await body(req, CreateBody);
   const out = await createPlaylist(userId, {
     prompt: b.prompt,

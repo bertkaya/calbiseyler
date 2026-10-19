@@ -68,7 +68,13 @@ export async function fetchJson<T>(url: string, init: RequestInit & { timeoutMs?
   try {
     const res = await fetch(url, { ...init, signal: ctrl.signal, cache: "no-store" });
     if (res.status === 429) throw new ProviderError(provider, `rate limited (retry after ${res.headers.get("retry-after") ?? "?"}s)`, 429);
-    if (!res.ok) throw new ProviderError(provider, `${res.status} ${(await res.text()).slice(0, 200)}`, res.status);
+    if (!res.ok) {
+      const text = await res.text();
+      if (provider === "youtube" && res.status === 403 && /quotaExceeded|rateLimitExceeded/.test(text)) {
+        throw new ProviderError(provider, "YouTube's daily quota is used up. It resets at midnight Pacific time — try again tomorrow.", 429);
+      }
+      throw new ProviderError(provider, `${res.status} ${text.slice(0, 200)}`, res.status);
+    }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   } catch (e) {

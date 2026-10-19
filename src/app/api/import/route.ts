@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { body, json, route } from "@/lib/server/http";
+import { enforceLimit } from "@/lib/server/ratelimit";
 import { requireUser } from "@/lib/server/session";
 import { HttpError, importTracks } from "@/lib/server/playlists";
 import { spotifyProvider } from "@/lib/providers/spotify";
@@ -11,6 +12,7 @@ export const maxDuration = 60;
 
 export const POST = route(async (req: Request) => {
   const userId = await requireUser();
+  await enforceLimit("import", 10, 3600, userId);
   const b = await body(req, z.object({ name: z.string().max(120).default(""), text: z.string().max(100_000).optional(), url: z.string().max(500).optional() }));
   if (b.url) {
     const auth = (await spotifyAuth(userId)) ?? undefined;

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { body, json, route } from "@/lib/server/http";
+import { enforceLimit } from "@/lib/server/ratelimit";
 import { requireUser } from "@/lib/server/session";
 import { HttpError, buildContext } from "@/lib/server/playlists";
 import { getPlaylist, getTracks } from "@/lib/server/repo";
@@ -14,6 +15,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export const POST = route(async (req: Request, { params }: Ctx) => {
   const userId = await requireUser();
+  await enforceLimit("match", 40, 3600, userId);
   const { id } = await params;
   const { provider: pid } = await body(req, z.object({ provider: z.enum(["spotify", "apple", "deezer", "youtube"]) }));
   const p = await getPlaylist(id);
