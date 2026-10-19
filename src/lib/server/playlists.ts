@@ -12,7 +12,8 @@ import { computeDNA, computeStats } from "../engine/dna";
 import { assignRoles } from "../engine/roles";
 import { interpretBrief, explainPlaylist } from "../engine/explain";
 import { makeTitle } from "../engine/titles";
-import { energyAt } from "../engine/flow";
+import { energyAt, sampleCurve } from "../engine/flow";
+import { resequenceTracks, type SequenceMode } from "../engine/sequence";
 import { presetPatch, type MakeItPreset } from "../engine/presets";
 import { passesFilters } from "../engine/scoring";
 import { understand, briefSummary, hashSeed } from "../ai/intent";
@@ -400,6 +401,47 @@ export async function moveTrack(userId: string, id: string, from: number, to: nu
   await repo.logSession(p.id, "move", `${from}->${to}`, "", p);
   const saved = await rebuildDerived(p, await repo.getTracks(pts.map((t) => t.trackId)), pts, userId);
   return { playlist: await hydrate(saved, userId), message: "", diff: { kept: pts.length, added: 0, removed: 0 } };
+}
+
+export async function resequencePlaylist(userId: string, id: string, mode: SequenceMode): Promise<ChangeResult> {
+  const p = await ownedPlaylist(userId, id);
+  const currentTracks = await repo.getTracks(p.tracks.map((t) => t.trackId));
+  const lockedByTrack = new Map(p.tracks.map((t) => [t.trackId, t.locked]));
+  const { ordered, flow, peakPosition } = resequenceTracks(currentTracks, p.brief, mode);
+  const nextBrief: PlaylistBrief = { ...p.brief, flow, peakPosition, mode: "sequential" };
+  const roles = assignRoles(ordered, nextBrief);
+  const pts = ordered.map((t, i) => ({
+    trackId: t.id,
+    position: i,
+    role: roles[i],
+    transitionIn: null,
+    locked: lockedByTrack.get(t.id) ?? false,
+  }));
+  await repo.logSession(p.id, "resequence", mode, `${pts.length} tracks`, p);
+  const nextPlaylist: StoredPlaylist = {
+    ...p,
+    brief: nextBrief,
+    flowTarget: sampleCurve(nextBrief),
+  };
+  const saved = await rebuildDerived(nextPlaylist, ordered, pts, userId);
+  const transPct = Math.round(saved.stats.avgTransition * 100);
+  const labelTr: Record<SequenceMode, string> = {
+    arc: "Isınma → Zirve → Kapanış",
+    gradual_rise: "Kademeli Yükseliş",
+    bpm_smooth: "BPM / Tempo Uyumu",
+    wind_down: "Zirveden Sakinleşmeye",
+  };
+  const labelEn: Record<SequenceMode, string> = {
+    arc: "Warm-up → Peak → Cooldown",
+    gradual_rise: "Gradual Rise",
+    bpm_smooth: "Smooth BPM / Tempo",
+    wind_down: "Wind-down Arc",
+  };
+  const message =
+    p.brief.lang === "en"
+      ? `Re-sequenced all ${pts.length} tracks (${labelEn[mode]}) · transition flow ${transPct}%.`
+      : `${pts.length} şarkının tamamı "${labelTr[mode]}" akışına göre yeniden sıralandı · geçiş uyumu %${transPct}.`;
+  return { playlist: await hydrate(saved, userId), message, diff: { kept: pts.length, added: 0, removed: 0 } };
 }
 
 export async function toggleLock(userId: string, id: string, position: number): Promise<ChangeResult> {

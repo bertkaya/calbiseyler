@@ -70,4 +70,5 @@ export const ActionBody = z.discriminatedUnion("action", [
   z.object({ action: z.literal("duplicate") }),
   z.object({ action: z.literal("share") }),
   z.object({ action: z.literal("journal"), text: z.string().min(1).max(2000) }),
+  z.object({ action: z.literal("resequence"), mode: z.enum(["arc", "gradual_rise", "bpm_smooth", "wind_down"]) }),
 ]);

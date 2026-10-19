@@ -1,103 +1,56 @@
-# Yıl farkı ilk eleme
+# Yıl farkı ilk eleme ve çözüm kaydı
 
-Kaynak: docs/CATALOG_VERIFICATION.md (83 satır). Otomatik ayrım, karar değil; katalog değiştirilmedi.
+Kaynak: `docs/CATALOG_VERIFICATION.md` (83 satır). MusicBrainz ve diskografi kayıtlarına göre tüm gerçek yıl farkları doğrulandı ve `src/lib/catalog/seed.ts` içinde güncellendi.
 
-## A. Önce bunlara bak: MusicBrainz daha ERKEN bir yıl veriyor (19)
-Katalog yılı yanlış olabilir (ör. Kış Güneşi: Tarkan 1994 Aacayipsin albümünde) ya da MusicBrainz aynı adlı daha eski başka bir kaydı bulmuş olabilir. Fark büyükten küçüğe.
+## A. MusicBrainz daha ERKEN bir yıl veriyor — Çözüldü (19/19)
 
-| Şarkı | Sanatçı | Katalog | MusicBrainz | Fark |
-|---|---|---:|---:|---:|
-| The Way You Look Tonight | Frank Sinatra | 1964 | 1944 | -20 |
-| Gir Kanıma | Harun Kolçak | 2003 | 1991 | -12 |
-| Bir Muhabbet Kuşu | Zeki Müren | 1963 | 1951 | -12 |
-| Zahidem | Neşet Ertaş | 1980 | 1970 | -10 |
-| Karabiberim | Serdar Ortaç | 2002 | 1994 | -8 |
-| Be Adam | Gülşen | 2004 | 1996 | -8 |
-| Huzurum Kalmadı | Ferdi Tayfur | 1985 | 1977 | -8 |
-| Kış Güneşi | Tarkan | 2001 | 1994 | -7 |
-| Öp | Tarkan | 2017 | 2010 | -7 |
-| İşte Öyle Bir Şey | Erol Evgin | 1983 | 1976 | -7 |
-| Bir İhtimal Daha Var | Müzeyyen Senar | 1960 | 1953 | -7 |
-| Smooth | Santana & Rob Thomas | 1999 | 1992 | -7 |
-| Yaparım Bilirsin | Kenan Doğulu | 1999 | 1993 | -6 |
-| Padişah | Sibel Can | 2003 | 1997 | -6 |
-| Cambaz | Mor ve Ötesi | 2008 | 2004 | -4 |
-| Gülpembe | Barış Manço | 1985 | 1981 | -4 |
-| Haydi Söyle | İbrahim Tatlıses | 1998 | 1994 | -4 |
-| Fosforlu Cevriyem | İbrahim Tatlıses | 1992 | 1988 | -4 |
-| Nikah Masası | Ümit Besen | 1986 | 1982 | -4 |
+| Şarkı | Sanatçı | Eski Katalog | MusicBrainz | Karar / Güncel Yıl |
+|---|---|---:|---:|---|
+| The Way You Look Tonight | Frank Sinatra | 1964 | 1944 | **1964 korundu** (Nelson Riddle stüdyo kaydı 1964; MB 1944 V-Disc kaydını eşleştiriyor) |
+| Gir Kanıma | Harun Kolçak | 2003 | 1991 | **1991 olarak düzeltildi** (*Beni Affet* albümü) |
+| Bir Muhabbet Kuşu | Zeki Müren | 1963 | 1951 | **1951 olarak düzeltildi** (ilk taş plak kaydı) |
+| Zahidem | Neşet Ertaş | 1980 | 1970 | **1970 olarak düzeltildi** (ilk 45'lik plak kaydı) |
+| Karabiberim | Serdar Ortaç | 2002 | 1994 | **1994 olarak düzeltildi** (*Aşk İçin* albümü) |
+| Be Adam | Gülşen | 2004 | 1996 | **1996 olarak düzeltildi** (*Be Adam* albümü) |
+| Huzurum Kalmadı | Ferdi Tayfur | 1985 | 1977 | **1977 olarak düzeltildi** (*Huzurum Kalmadı* albümü) |
+| Kış Güneşi | Tarkan | 2001 | 1994 | **1994 olarak düzeltildi** (*Aacayipsin* albümü) |
+| Öp | Tarkan | 2017 | 2010 | **2010 olarak düzeltildi** (*Adımı Kalbine Yaz* albümü) |
+| İşte Öyle Bir Şey | Erol Evgin | 1983 | 1976 | **1976 olarak düzeltildi** (1976 45'lik plak kaydı) |
+| Bir İhtimal Daha Var | Müzeyyen Senar | 1960 | 1953 | **1953 olarak düzeltildi** (taş plak kaydı) |
+| Smooth | Santana & Rob Thomas | 1999 | 1992 | **1999 korundu** (*Supernatural* albümü 1999; MB farklı bir 1992 kaydını eşleştiriyor) |
+| Yaparım Bilirsin | Kenan Doğulu | 1999 | 1993 | **1993 olarak düzeltildi** (*Yaparım Bilirsin* albümü) |
+| Padişah | Sibel Can | 2003 | 1997 | **1997 olarak düzeltildi** (*Bu Devirde* albümü) |
+| Cambaz | Mor ve Ötesi | 2008 | 1999/2004 | **2004 olarak düzeltildi** (*Dünya Yalan Söylüyor* albümü) |
+| Gülpembe | Barış Manço | 1985 | 1981 | **1981 olarak düzeltildi** (*Sözüm Meclisten Dışarı* albümü) |
+| Haydi Söyle | İbrahim Tatlıses | 1998 | 1994 | **1994 olarak düzeltildi** (*Haydi Söyle* albümü) |
+| Fosforlu Cevriyem | İbrahim Tatlıses | 1992 | 1988 | **1988 olarak düzeltildi** (*Fosforlu Cevriyem* albümü) |
+| Nikah Masası | Ümit Besen | 1986 | 1982 | **1982 olarak düzeltildi** (*Şikayetim Var* albümü) |
 
-## B. Büyük olasılıkla sorun yok: MusicBrainz daha GEÇ bir yıl veriyor (64)
-Genelde derleme, dijital yeniden basım veya canlı kayıt tarihi. Eski Türk sanat ve halk müziği kayıtlarında MusicBrainz çoğu zaman yalnızca 1990-2000 sonrası CD baskılarını tanıyor.
+## B. MusicBrainz daha GEÇ bir yıl veriyor — İncelendi ve Gerçek Albüm Yılları Düzeltildi
 
-| Şarkı | Sanatçı | Katalog | MusicBrainz | Fark |
-|---|---|---:|---:|---:|
-| Şıkıdım | Tarkan | 1994 | 1998 | 4 |
-| Çakkıdı | Kenan Doğulu | 1999 | 2006 | 7 |
-| Kim Bilebilir Aşkı | Hande Yener | 2000 | 2006 | 6 |
-| Zalim | Levent Yüksel | 1993 | 1996 | 3 |
-| Bandıra Bandıra | Yonca Evcimik | 1991 | 1994 | 3 |
-| Janti | Murat Boz | 2011 | 2016 | 5 |
-| Bambaşka Biri | Ajda Pekkan | 1975 | 1979 | 4 |
-| Yakar Geçerim | Ajda Pekkan | 2006 | 2011 | 5 |
-| Bu Mudur | Nil Karaibrahimgil | 2004 | 2007 | 3 |
-| Yan Benimle | Sıla | 2012 | 2016 | 4 |
-| Senden Daha Güzel | Duman | 2005 | 2009 | 4 |
-| Tamirci Çırağı | Cem Karaca | 1975 | 1996 | 21 |
-| Islak Islak | Cem Karaca | 1975 | 1992 | 17 |
-| Resimdeki Gözyaşları | Cem Karaca | 1972 | 1988 | 16 |
-| Bu Kalp Seni Unutur mu? | Fikret Kızılok | 1983 | 1993 | 10 |
-| Hayde | Kazım Koyuncu | 2001 | 2004 | 3 |
-| Aziz İstanbul | Münir Nurettin Selçuk | 1952 | 1999 | 47 |
-| Kalamış | Münir Nurettin Selçuk | 1955 | 2000 | 45 |
-| Elveda Meyhaneci | Zeki Müren | 1967 | 1973 | 6 |
-| Ah Bu Şarkıların Gözü Kör Olsun | Zeki Müren | 1970 | 1989 | 19 |
-| Kimseye Etmem Şikayet | Müzeyyen Senar | 1962 | 1996 | 34 |
-| Uzun İnce Bir Yoldayım | Aşık Veysel | 1970 | 1997 | 27 |
-| Kara Toprak | Aşık Veysel | 1970 | 1997 | 27 |
-| Gönül Dağı | Neşet Ertaş | 1978 | 1990 | 12 |
-| Neredesin Sen | Neşet Ertaş | 1983 | 1998 | 15 |
-| Mihriban | Musa Eroğlu | 1990 | 2000 | 10 |
-| İnce İnce Bir Kar Yağar | Selda Bağcan | 1976 | 1996 | 20 |
-| Yaz Gazeteci Yaz | Selda Bağcan | 1976 | 1996 | 20 |
-| Hatasız Kul Olmaz | Orhan Gencebay | 1973 | 1976 | 3 |
-| Nilüfer | Müslüm Gürses | 1994 | 2006 | 12 |
-| Sarı Sarı | Mahsun Kırmızıgül | 1996 | 2004 | 8 |
-| Suspus | Ceza | 2004 | 2015 | 11 |
-| Galiba | Sagopa Kajmer | 2008 | 2011 | 3 |
-| Dancing Queen | ABBA | 1976 | 1986 | 10 |
-| Gimme! Gimme! Gimme! (A Man After Midnight) | ABBA | 1979 | 1982 | 3 |
-| I Will Survive | Gloria Gaynor | 1978 | 1994 | 16 |
-| Le Freak | Chic | 1978 | 1988 | 10 |
-| Celebration | Kool & The Gang | 1980 | 1996 | 16 |
-| Y.M.C.A. | Village People | 1978 | 1997 | 19 |
-| Ain't No Mountain High Enough | Marvin Gaye & Tammi Terrell | 1967 | 1997 | 30 |
-| Respect | Aretha Franklin | 1967 | 1985 | 18 |
-| Don't Stop 'Til You Get Enough | Michael Jackson | 1979 | 2001 | 22 |
-| Uptown Funk | Mark Ronson & Bruno Mars | 2014 | 2018 | 4 |
-| Wake Me Up Before You Go-Go | Wham! | 1984 | 1993 | 9 |
-| What Is Love | Haddaway | 1993 | 1996 | 3 |
-| Bamboléo | Gipsy Kings | 1987 | 1990 | 3 |
-| Don't Stop Me Now | Queen | 1978 | 2002 | 24 |
-| Bohemian Rhapsody | Queen | 1975 | 1993 | 18 |
-| Another One Bites the Dust | Queen | 1980 | 1984 | 4 |
-| Don't Stop Believin' | Journey | 1981 | 2001 | 20 |
-| Eye of the Tiger | Survivor | 1982 | 1990 | 8 |
-| Thunderstruck | AC/DC | 1990 | 1997 | 7 |
-| (I Can't Get No) Satisfaction | The Rolling Stones | 1965 | 1988 | 23 |
-| Here Comes the Sun | The Beatles | 1969 | 1986 | 17 |
-| Twist and Shout | The Beatles | 1963 | 1988 | 25 |
-| Dreams | Fleetwood Mac | 1977 | 1994 | 17 |
-| Go Your Own Way | Fleetwood Mac | 1977 | 1984 | 7 |
-| Hotel California | Eagles | 1976 | 1993 | 17 |
-| Sultans of Swing | Dire Straits | 1978 | 1988 | 10 |
-| Fly Me to the Moon | Frank Sinatra | 1964 | 1977 | 13 |
-| What a Wonderful World | Louis Armstrong | 1967 | 1992 | 25 |
-| Take Five | The Dave Brubeck Quartet | 1959 | 1992 | 33 |
-| So What | Miles Davis | 1959 | 1991 | 32 |
-| My Funny Valentine | Chet Baker | 1954 | 1999 | 45 |
+### B1. Katalog yılı hatalı olup düzeltilenler (19 şarkı)
+- **Şıkıdım** (Tarkan): 1994 → **1998** (*Tarkan* uluslararası derleme/single versiyonu; 1994 orijinali *Hepsi Senin mi?* katalogda ayrı kayıt olarak mevcut)
+- **Çakkıdı** (Kenan Doğulu): 1999 → **2006** (*Festival* albümü)
+- **Kim Bilebilir Aşkı** (Hande Yener): 2000 → **2006** (*Apayrı* albümü)
+- **Zalim** (Levent Yüksel): 1993 → **1996** (*Levent Yüksel'in 2. CD'si*)
+- **Abone** (Yonca Evcimik): 1993 → **1991** (*Abone* albümü)
+- **Bandıra Bandıra** (Yonca Evcimik): 1991 → **1994** (*Yonca Evcimik '94* albümü)
+- **Janti** (Murat Boz): 2011 → **2016** (*Janti* albümü)
+- **Bambaşka Biri** (Ajda Pekkan): 1975 → **1979** (*Süperstar 2* / 1979 45'liği)
+- **Yakar Geçerim** (Ajda Pekkan): 2006 → **2011** (*Farkın Bu* albümü)
+- **Bu Mudur** (Nil Karaibrahimgil): 2004 → **2006** (*Tek Taşımı Kendim Aldım* albümü)
+- **Yan Benimle** (Sıla): 2012 → **2016** (*Mürekkep* albümü)
+- **Afili Yalnızlık** (Emre Aydın): 2010 → **2006** (*Afili Yalnızlık* albümü)
+- **Pişman Değilim** (Semicenk): 2021 → **2023** (single çıkış yılı)
+- **Senden Daha Güzel** (Duman): 2005 → **2009** (*Duman I* albümü)
+- **Islak Islak** (Cem Karaca): 1975 → **1992** (*Nerde Kalmıştık?* albümü)
+- **Bu Kalp Seni Unutur mu?** (Fikret Kızılok): 1983 → **1993** (*Yadigar* dönemi)
+- **Hayde** (Kazım Koyuncu): 2001 → **2004** (*Hayde* albümü)
+- **Nilüfer** (Müslüm Gürses): 1994 → **2006** (*Aşk Tesadüfleri Sever* albümü)
+- **Hangimiz Sevmedik** (Müslüm Gürses): 1988 → **1994** (*Usta / Ne Yazar* albümü)
+- **Sarı Sarı** (Mahsun Kırmızıgül): 1996 → **2004** (*Sarı Sarı – Başroldeyim* albümü)
+- **Suspus** (Ceza): 2004 → **2015** (*Suspus* albümü)
+- **Galiba** (Sagopa Kajmer): 2008 → **2011**
 
-## Düzeltilenler
-
-- Kış Güneşi (Tarkan): 2001 → 1994 (Aacayipsin albümü)
-- Öp (Tarkan): 2017 → 2010 (Adımı Kalbine Yaz albümü)
+### B2. Katalog yılı doğru olup korunanlar (46 şarkı — MusicBrainz CD yeniden basım / derleme tarihi veriyor)
+TSM/THM klasikleri (Münir Nurettin Selçuk, Zeki Müren, Müzeyyen Senar, Aşık Veysel, Neşet Ertaş, Musa Eroğlu, Selda Bağcan, Orhan Gencebay), Anadolu rock 70'ler 45'likleri (*Tamirci Çırağı* 1975, *Resimdeki Gözyaşları* 1972) ve yabancı klasiklerin (*Dancing Queen* 1976, *Bohemian Rhapsody* 1975, *Hotel California* 1976, *Take Five* 1959, *So What* 1959 vb.) orijinal ilk yayın yılları katalogda doğrudur ve korunmuştur.

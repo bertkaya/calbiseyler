@@ -27,5 +27,6 @@ export const POST = route(async (req: Request, { params }: Ctx) => {
     case "duplicate": return json({ playlist: await svc.duplicate(userId, id) }, { status: 201 });
     case "share": return json({ shareId: await svc.share(userId, id) });
     case "journal": return json({ signals: await svc.addJournalEntry(userId, id, a.text) });
+    case "resequence": return json(await svc.resequencePlaylist(userId, id, a.mode));
   }
 });

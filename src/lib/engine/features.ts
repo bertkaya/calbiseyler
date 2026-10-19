@@ -47,6 +47,12 @@ export function nostalgiaOf(t: MusicTrack, now = CURRENT_YEAR): number {
   return n;
 }
 
+export function bpmOf(t: MusicTrack): number {
+  if (t.features.bpm !== undefined && t.features.bpm > 0) return t.features.bpm;
+  return Math.round(80 + energyOf(t) * 60);
+}
+
 export function hasFeature(t: MusicTrack, k: keyof MusicTrack["features"]): boolean {
   return t.features[k] !== undefined;
 }
+

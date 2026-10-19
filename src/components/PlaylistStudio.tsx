@@ -6,6 +6,8 @@ import type { HydratedPlaylist } from "@/lib/server/playlists";
 import type { MusicTrack, PlaylistBrief, TrackRole } from "@/lib/types";
 import { MAKE_IT, type MakeItPreset } from "@/lib/engine/presets";
 import { ROLE_LABEL } from "@/lib/engine/roles";
+import { summarizeFlowPhases, type SequenceMode } from "@/lib/engine/sequence";
+import { buildYouTubeQueueUrl, formatShareText } from "@/lib/export";
 import { GENRE_LABEL } from "@/lib/i18n";
 import { formatDuration, formatTrackTime } from "@/lib/engine/util";
 import { api, ApiError } from "./api";
@@ -152,7 +154,27 @@ export function PlaylistStudio({ id }: { id: string }) {
     let acc = 0;
     return items.map((it) => { const mid = (acc + it.track.durationSec / 2) / Math.max(1, totalSec); acc += it.track.durationSec; return { t: mid, e: (it.track.features.energy ?? 0.5) * 10, title: it.track.title }; });
   }, [items, totalSec]);
+  const phases = useMemo(() => summarizeFlowPhases(items.map((it) => it.track), items.map((it) => it.role)), [items]);
   const matchBy = useMemo(() => new Map(match?.matches.map((m) => [m.trackId, m]) ?? []), [match]);
+  const ytQueueUrl = useMemo(
+    () => (match?.provider === "youtube" ? buildYouTubeQueueUrl(match.matches.map((m) => m.ref?.url)) : null),
+    [match],
+  );
+
+  const copyTracklist = useCallback(async () => {
+    if (!pl) return;
+    const text = formatShareText(
+      pl.title,
+      pl.items.map((it) => ({ position: it.position, role: it.role, track: it.track, url: matchBy.get(it.trackId)?.ref?.url })),
+      uiLang,
+    );
+    try {
+      await navigator.clipboard.writeText(text);
+      setToast(uiLang === "en" ? "Tracklist copied to clipboard ✓" : "Şarkı listesi panoya kopyalandı ✓");
+    } catch {
+      setToast(uiLang === "en" ? "Could not access clipboard" : "Panoya erişilemedi");
+    }
+  }, [pl, matchBy, uiLang]);
 
   if (err) return <div className="card empty section">{tt(err === "404" ? "pl.notFound" : "pl.loadError")} <Link href="/">{tt("pl.createNew")}</Link></div>;
   if (!pl) return <div className="section"><div className="skeleton" style={{ height: 60, width: "60%" }} /><div className="skeleton" style={{ height: 300, marginTop: 20 }} /></div>;
@@ -177,7 +199,7 @@ export function PlaylistStudio({ id }: { id: string }) {
           <button className="btn btn-primary" onClick={() => items[0] && play(items[0].trackId)}>▶ {L("Önizle", "Play preview")}</button>
           <button className="btn" onClick={() => setShuffleView(shuffleView ? null : [...order].sort(() => Math.random() - 0.5))} aria-pressed={!!shuffleView} title={L("Shuffle'da nasıl akar?", "How does it flow on shuffle?")}>🔀 {shuffleView ? L("Sıralıya dön", "Back to order") : L("Shuffle testi", "Shuffle test")}</button>
           <button className="btn" onClick={async () => { const r = await api<{ playlist: HydratedPlaylist }>(`/api/playlists/${id}`, { method: "PATCH", body: { saved: !pl.saved } }); setPl(r.playlist); setToast(r.playlist.saved ? L("Kaydedildi ✓", "Saved ✓") : L("Kayıttan çıkarıldı", "Unsaved")); }}>{pl.saved ? "★ " + L("Kaydedildi", "Saved") : "☆ " + L("Kaydet", "Save")}</button>
-          <ExportMenu id={id} lang={lang} />
+          <ExportMenu id={id} lang={lang} onCopy={copyTracklist} ytQueueUrl={ytQueueUrl} />
           <button className="btn" onClick={async () => { const r = await act({ action: "share" }) as unknown as { shareId?: string }; const sid = r?.shareId; if (sid) { const url = `${location.origin}/p/${sid}`; try { await navigator.clipboard.writeText(url); setToast(L("Paylaşım linki kopyalandı", "Share link copied")); } catch { setToast(url); } } }}>↗ {L("Paylaş", "Share")}</button>
           <button className="btn btn-ghost" onClick={async () => { const r = await act({ action: "duplicate" }); if (r?.playlist) router.push(`/playlist/${r.playlist.id}`); }}>⧉ {L("Çoğalt", "Duplicate")}</button>
           <button className="btn btn-ghost" disabled={busy} onClick={() => act({ action: "undo" }).then((r) => r && setMsgs((m) => [...m, { who: "ai", text: L("Bir önceki versiyona döndüm.", "Restored the previous version.") }]))}>↶ {L("Geri al", "Undo")}</button>
@@ -286,8 +308,40 @@ export function PlaylistStudio({ id }: { id: string }) {
           </div>
 
           <div className="card pad">
-            <span className="eyebrow">Flow</span>
+            <div className="row between">
+              <span className="eyebrow">Flow · {L("Enerji & Tempo Eğrisi", "Energy & Tempo Curve")}</span>
+              <span className="tiny mono muted">🔗 {Math.round(pl.stats.avgTransition * 100)}%</span>
+            </div>
             <div style={{ marginTop: 10 }}><FlowChart target={pl.flowTarget} points={points} roles={items.map((i) => i.role)} /></div>
+            {phases.length > 0 && (
+              <div className="row wrap" style={{ marginTop: 10, gap: 6 }}>
+                {phases.map((ph) => (
+                  <span key={ph.phase} className="chip chip-soft mono" style={{ fontSize: 11, padding: "4px 8px", cursor: "default" }}>
+                    <strong>{ph.label[lang]}</strong> · {ph.trackCount} {L("şarkı", "tr")} · 🔥{ph.avgEnergy.toFixed(1)} · {ph.avgBpm} bpm
+                  </span>
+                ))}
+              </div>
+            )}
+            <div style={{ marginTop: 12 }}>
+              <div className="tiny muted" style={{ marginBottom: 6 }}>{L("Akış Sıralaması (mevcut şarkıları yeniden diz):", "Smart Sequence (re-order current tracks):")}</div>
+              <div className="chips">
+                {([
+                  ["arc", L("🌊 Isınma → Zirve → Kapanış", "🌊 Warm-up → Peak → Cooldown")],
+                  ["gradual_rise", L("📈 Kademeli Yükseliş", "📈 Gradual Rise")],
+                  ["bpm_smooth", L("🎛️ BPM / Tempo Uyumu", "🎛️ Smooth BPM")],
+                  ["wind_down", L("🌙 Sakinleşen Akış", "🌙 Wind Down")],
+                ] as [SequenceMode, string][]).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    className="chip"
+                    disabled={busy}
+                    onClick={() => act({ action: "resequence", mode }, { echo: label })}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="card pad">
@@ -299,7 +353,7 @@ export function PlaylistStudio({ id }: { id: string }) {
           <IncludeExclude pl={pl} busy={busy} act={act} lang={lang} />
 
           <div className="card pad">
-            <span className="eyebrow">{L("Platformlar", "Platforms")}</span>
+            <span className="eyebrow">{L("Platformlar & Anında Dışa Aktarım", "Platforms & Instant Export")}</span>
             <div className="chips" style={{ marginTop: 10 }}>
               {/* Free platforms first; paid ones stay available for people who already have the account. */}
               {(["youtube", "deezer", "spotify", "apple"] as ProviderId[]).map((p) => (
@@ -309,6 +363,16 @@ export function PlaylistStudio({ id }: { id: string }) {
                   {p === "spotify" || p === "apple" ? <span className="x">💳</span> : null}
                 </button>
               ))}
+            </div>
+            <div className="row wrap" style={{ marginTop: 10, gap: 6 }}>
+              <a className="btn btn-sm" href={`/api/playlists/${id}/export?format=m3u8`}>⤓ .M3U8</a>
+              <a className="btn btn-sm" href={`/api/playlists/${id}/export?format=csv`}>⤓ .CSV</a>
+              <button className="btn btn-sm" type="button" onClick={copyTracklist}>📋 {L("Metni Kopyala", "Copy Text")}</button>
+              {ytQueueUrl && (
+                <a className="btn btn-sm btn-primary" href={ytQueueUrl} target="_blank" rel="noreferrer">
+                  ▶ {L("YouTube Kuyruğunda Aç (Hesapsız)", "Open YouTube Queue (No Login)")}
+                </a>
+              )}
             </div>
             <p className="tiny faint" style={{ margin: "8px 0 0" }}>💳 = {tt("cost.premium")} / {tt("cost.paid")}. {tt("pl.freeExport")}</p>
             {matching && <p className="small muted" style={{ marginTop: 10 }}><Dots /> {L("Her şarkıyı kontrol ediyorum…", "Checking every track…")}</p>}
@@ -386,14 +450,39 @@ export function PlaylistStudio({ id }: { id: string }) {
   );
 }
 
-function ExportMenu({ id, lang }: { id: string; lang: "tr" | "en" }) {
+function ExportMenu({ id, lang, onCopy, ytQueueUrl }: { id: string; lang: "tr" | "en"; onCopy: () => void; ytQueueUrl?: string | null }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="rel">
       <button className="btn" onClick={() => setOpen(!open)} aria-expanded={open}>⤓ {lang === "en" ? "Export" : "Dışa aktar"}</button>
       {open && (
-        <div className="card popover" style={{ minWidth: 200 }} onMouseLeave={() => setOpen(false)}>
-          {[["txt", lang === "en" ? "Text list" : "Metin listesi"], ["csv", "CSV (Soundiiz / TuneMyMusic)"], ["m3u", "M3U"], ["json", "JSON"]].map(([f, l]) => (
+        <div className="card popover" style={{ minWidth: 230 }} onMouseLeave={() => setOpen(false)}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ display: "flex", width: "100%", justifyContent: "flex-start" }}
+            onClick={() => { setOpen(false); onCopy(); }}
+          >
+            📋 {lang === "en" ? "Copy tracklist" : "Listeyi panoya kopyala"}
+          </button>
+          {ytQueueUrl && (
+            <a
+              className="btn btn-ghost btn-sm"
+              style={{ display: "flex", justifyContent: "flex-start" }}
+              href={ytQueueUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              ▶ {lang === "en" ? "YouTube Instant Queue" : "YouTube Anında Kuyruk"}
+            </a>
+          )}
+          {[
+            ["m3u8", "M3U8 (UTF-8 Playlist)"],
+            ["csv", "CSV (Soundiiz / TuneMyMusic)"],
+            ["txt", lang === "en" ? "Text list (.txt)" : "Metin listesi (.txt)"],
+            ["m3u", "M3U (Legacy)"],
+            ["json", "JSON"],
+          ].map(([f, l]) => (
             <a key={f} className="btn btn-ghost btn-sm" style={{ display: "flex", justifyContent: "flex-start" }} href={`/api/playlists/${id}/export?format=${f}`}>{l}</a>
           ))}
         </div>
